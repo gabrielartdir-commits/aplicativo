@@ -66,6 +66,21 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
     [cards]
   );
 
+  /** O Select precisa de `items` para exibir o rótulo no gatilho, não o valor. */
+  const cardItems = useMemo(
+    () => activeCards.map((c) => ({ value: c.id, label: c.name })),
+    [activeCards]
+  );
+
+  const categoryItems = useMemo(
+    () =>
+      (categories ?? []).map((c) => ({
+        value: c.id,
+        label: `${c.emoji} ${c.name}`,
+      })),
+    [categories]
+  );
+
   const empty = {
     card_id: "",
     category_id: null,
@@ -164,16 +179,21 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
             <div className="space-y-2">
               <Label>Cartão</Label>
               <Select
+                items={cardItems}
                 value={form.watch("card_id") || null}
-                onValueChange={(v) => form.setValue("card_id", v ?? "")}
+                onValueChange={(v) =>
+                  form.setValue("card_id", (v as string) ?? "", {
+                    shouldValidate: true,
+                  })
+                }
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Escolha o cartão" />
                 </SelectTrigger>
                 <SelectContent>
-                  {activeCards.map((card) => (
-                    <SelectItem key={card.id} value={card.id}>
-                      {card.name}
+                  {cardItems.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -233,16 +253,19 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
             <div className="space-y-2">
               <Label>Categoria (opcional)</Label>
               <Select
+                items={categoryItems}
                 value={form.watch("category_id")}
-                onValueChange={(v) => form.setValue("category_id", v)}
+                onValueChange={(v) =>
+                  form.setValue("category_id", (v as string) ?? null)
+                }
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Sem categoria" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(categories ?? []).map((cat) => (
-                    <SelectItem key={cat.id} value={cat.id}>
-                      {cat.emoji} {cat.name}
+                  {categoryItems.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
                     </SelectItem>
                   ))}
                 </SelectContent>

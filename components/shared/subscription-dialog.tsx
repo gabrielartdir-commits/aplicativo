@@ -75,6 +75,26 @@ export function SubscriptionDialog({
     [cards]
   );
 
+  /** O Select precisa de `items` para exibir o rótulo no gatilho, não o valor. */
+  const cardItems = useMemo(
+    () => activeCards.map((c) => ({ value: c.id, label: c.name })),
+    [activeCards]
+  );
+
+  const categoryItems = useMemo(
+    () =>
+      (categories ?? []).map((c) => ({
+        value: c.id,
+        label: `${c.emoji} ${c.name}`,
+      })),
+    [categories]
+  );
+
+  const methodItems = [
+    { value: "credit", label: "Crédito (entra na fatura)" },
+    { value: "debit", label: "Débito (reserva do saldo)" },
+  ];
+
   const empty = {
     name: "",
     amount: "",
@@ -182,17 +202,21 @@ export function SubscriptionDialog({
           <div className="space-y-2">
             <Label>Forma de pagamento</Label>
             <Select
+              items={methodItems}
               value={method}
               onValueChange={(v) =>
                 form.setValue("payment_method", (v ?? "credit") as PaymentMethod)
               }
             >
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="credit">Crédito (entra na fatura)</SelectItem>
-                <SelectItem value="debit">Débito (reserva do saldo)</SelectItem>
+                {methodItems.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -201,16 +225,21 @@ export function SubscriptionDialog({
             <div className="space-y-2">
               <Label>Cartão</Label>
               <Select
+                items={cardItems}
                 value={form.watch("card_id")}
-                onValueChange={(v) => form.setValue("card_id", v)}
+                onValueChange={(v) =>
+                  form.setValue("card_id", (v as string) ?? null, {
+                    shouldValidate: true,
+                  })
+                }
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Escolha o cartão" />
                 </SelectTrigger>
                 <SelectContent>
-                  {activeCards.map((card) => (
-                    <SelectItem key={card.id} value={card.id}>
-                      {card.name}
+                  {cardItems.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -226,16 +255,19 @@ export function SubscriptionDialog({
           <div className="space-y-2">
             <Label>Categoria (opcional)</Label>
             <Select
+              items={categoryItems}
               value={form.watch("category_id")}
-              onValueChange={(v) => form.setValue("category_id", v)}
+              onValueChange={(v) =>
+                form.setValue("category_id", (v as string) ?? null)
+              }
             >
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="Sem categoria" />
               </SelectTrigger>
               <SelectContent>
-                {(categories ?? []).map((cat) => (
-                  <SelectItem key={cat.id} value={cat.id}>
-                    {cat.emoji} {cat.name}
+                {categoryItems.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
                   </SelectItem>
                 ))}
               </SelectContent>
