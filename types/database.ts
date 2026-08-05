@@ -427,6 +427,9 @@ export type Database = {
           card_id: string | null;
           category_id: string | null;
           active: boolean;
+          /** Competência a partir da qual a assinatura entra nas faturas. */
+          start_year: number;
+          start_month: number;
           created_at: string;
         };
         Insert: {
@@ -438,6 +441,8 @@ export type Database = {
           card_id?: string | null;
           category_id?: string | null;
           active?: boolean;
+          start_year?: number;
+          start_month?: number;
           created_at?: string;
         };
         Update: {
@@ -449,6 +454,8 @@ export type Database = {
           card_id?: string | null;
           category_id?: string | null;
           active?: boolean;
+          start_year?: number;
+          start_month?: number;
           created_at?: string;
         };
         Relationships: [];

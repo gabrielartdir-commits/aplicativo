@@ -47,6 +47,43 @@ export function dueDateInMonth(
   return `${year}-${String(month).padStart(2, "0")}-${String(safeDay).padStart(2, "0")}`;
 }
 
+/**
+ * Vencimento real da fatura de uma competência.
+ *
+ * O vencimento vem sempre depois do fechamento. Num cartão que fecha dia 28 e
+ * vence dia 10, a fatura de agosto é paga em 10 de setembro — o vencimento cai
+ * no mês seguinte. Já num que fecha dia 5 e vence dia 15, os dois caem no
+ * mesmo mês.
+ */
+export function invoiceDueDate(
+  competence: YearMonth,
+  closingDay: number,
+  dueDay: number
+): string {
+  const target = dueDay > closingDay ? competence : nextYearMonth(competence);
+  return dueDateInMonth(target, dueDay);
+}
+
+/**
+ * Competência da primeira cobrança de uma compra no cartão.
+ *
+ * Compra feita até o fechamento entra na fatura do próprio mês; feita depois,
+ * já pegou a fatura fechada e cai na seguinte.
+ */
+export function competenceForPurchase(
+  purchaseDate: string,
+  closingDay: number
+): YearMonth {
+  const date = new Date(`${purchaseDate}T00:00:00`);
+  const competence = { year: date.getFullYear(), month: date.getMonth() + 1 };
+  return date.getDate() > closingDay ? nextYearMonth(competence) : competence;
+}
+
+/** Verdadeiro quando `a` é uma competência anterior a `b`. */
+export function isBeforeCompetence(a: YearMonth, b: YearMonth): boolean {
+  return a.year < b.year || (a.year === b.year && a.month < b.month);
+}
+
 /** Data local no formato YYYY-MM-DD (coluna `date` do Postgres). */
 export function toISODate(date: Date = new Date()): string {
   const y = date.getFullYear();

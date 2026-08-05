@@ -33,14 +33,23 @@ export const subscriptionRepository = {
     return (data ?? []) as unknown as SubscriptionWithCard[];
   },
 
-  /** Assinaturas ativas cobradas no crédito de um cartão — compõem a fatura. */
-  async listActiveByCard(cardId: string): Promise<Subscription[]> {
+  /**
+   * Assinaturas ativas no crédito de um cartão que já valiam numa competência.
+   * O recorte por start_year/start_month impede que uma assinatura cadastrada
+   * hoje apareça retroativamente na fatura de um mês passado.
+   */
+  async listActiveByCardForCompetence(
+    cardId: string,
+    year: number,
+    month: number
+  ): Promise<Subscription[]> {
     const { data, error } = await createClient()
       .from("subscriptions")
       .select("*")
       .eq("active", true)
       .eq("payment_method", "credit")
-      .eq("card_id", cardId);
+      .eq("card_id", cardId)
+      .or(`start_year.lt.${year},and(start_year.eq.${year},start_month.lte.${month})`);
     if (error) throw new Error(error.message);
     return data;
   },

@@ -16,7 +16,11 @@ import {
   round2,
   splitInstallments,
 } from "@/lib/finance";
-import { dueDateInMonth, type YearMonth } from "@/lib/dates";
+import {
+  competenceForPurchase,
+  invoiceDueDate,
+  type YearMonth,
+} from "@/lib/dates";
 import type { Database } from "@/types/database";
 import type { CardInvoice, Month } from "@/types/domain";
 import { creditCardRepository } from "./repositories/credit-card-repository";
@@ -38,7 +42,6 @@ export interface CreatePurchaseInput {
   totalAmount: number;
   installmentsCount: number;
   purchaseDate: string;
-  firstCharge: YearMonth;
 }
 
 export const cardService = {
@@ -49,9 +52,18 @@ export const cardService = {
   async syncInvoice(
     cardId: string,
     competence: YearMonth
-  ): Promise<CardInvoice> {
+  ): Promise<CardInvoice | null> {
     const card = (await creditCardRepository.list()).find((c) => c.id === cardId);
     if (!card) throw new Error("Cartão não encontrado.");
+
+    const existing = await cardInvoiceRepository.findByCardAndCompetence(
+      cardId,
+      competence.year,
+      competence.month
+    );
+
+    // Fatura paga é histórico: o que foi cobrado já foi cobrado.
+    if (existing?.paid) return existing;
 
     const installments = await cardInstallmentRepository.listByCardAndCompetence(
       cardId,
@@ -62,15 +74,14 @@ export const cardService = {
       installments.reduce((sum, i) => sum + Number(i.amount), 0)
     );
 
-    const subscriptions = await subscriptionRepository.listActiveByCard(cardId);
+    const subscriptions =
+      await subscriptionRepository.listActiveByCardForCompetence(
+        cardId,
+        competence.year,
+        competence.month
+      );
     const subscriptionsTotal = round2(
       subscriptions.reduce((sum, s) => sum + Number(s.amount), 0)
-    );
-
-    const existing = await cardInvoiceRepository.findByCardAndCompetence(
-      cardId,
-      competence.year,
-      competence.month
     );
 
     return cardInvoiceRepository.upsert({
@@ -80,9 +91,9 @@ export const cardService = {
       month: competence.month,
       installments_total: installmentsTotal,
       subscriptions_total: subscriptionsTotal,
-      due_date: dueDateInMonth(competence, card.due_day),
-      paid: existing?.paid ?? false,
-      paid_at: existing?.paid_at ?? null,
+      due_date: invoiceDueDate(competence, card.closing_day, card.due_day),
+      paid: false,
+      paid_at: null,
     });
   },
 
@@ -123,6 +134,17 @@ export const cardService = {
     input: CreatePurchaseInput,
     month: Month | null
   ): Promise<void> {
+    const card = (await creditCardRepository.list()).find(
+      (c) => c.id === input.cardId
+    );
+    if (!card) throw new Error("Cartão não encontrado.");
+
+    // Compra depois do fechamento já pegou a fatura fechada: cai na seguinte.
+    const firstCharge = competenceForPurchase(
+      input.purchaseDate,
+      card.closing_day
+    );
+
     const purchase = await cardPurchaseRepository.create({
       card_id: input.cardId,
       category_id: input.categoryId ?? null,
@@ -130,14 +152,14 @@ export const cardService = {
       total_amount: input.totalAmount,
       installments_count: input.installmentsCount,
       purchase_date: input.purchaseDate,
-      first_charge_year: input.firstCharge.year,
-      first_charge_month: input.firstCharge.month,
+      first_charge_year: firstCharge.year,
+      first_charge_month: firstCharge.month,
     });
 
     const amounts = splitInstallments(input.totalAmount, input.installmentsCount);
     const competences = installmentCompetences(
-      input.firstCharge.year,
-      input.firstCharge.month,
+      firstCharge.year,
+      firstCharge.month,
       input.installmentsCount
     );
 
@@ -159,11 +181,39 @@ export const cardService = {
     if (month) await this.refresh(month);
   },
 
+  /**
+   * Remover o cartão leva junto compras, parcelas e faturas (cascade), então a
+   * reserva do mês precisa ser recalculada — senão sobra reserva sem fatura.
+   */
+  async removeCard(cardId: string, month: Month | null): Promise<void> {
+    await creditCardRepository.remove(cardId);
+    if (month) await this.refresh(month);
+  },
+
+  /** Alterar fechamento ou vencimento muda a data das faturas em aberto. */
+  async updateCard(
+    id: string,
+    patch: Database["public"]["Tables"]["credit_cards"]["Update"],
+    month: Month | null
+  ): Promise<void> {
+    await creditCardRepository.update(id, patch);
+    if (month) await this.refresh(month);
+  },
+
+  /**
+   * A assinatura passa a valer da competência atual em diante — nunca
+   * retroage sobre faturas de meses já vividos.
+   */
   async createSubscription(
     input: SubscriptionInsert,
     month: Month | null
   ): Promise<void> {
-    await subscriptionRepository.create(input);
+    await subscriptionRepository.create({
+      ...input,
+      start_year: input.start_year ?? month?.year ?? new Date().getFullYear(),
+      start_month:
+        input.start_month ?? month?.month ?? new Date().getMonth() + 1,
+    });
     if (month) await this.refresh(month);
   },
 

@@ -26,11 +26,12 @@ import {
 import { usePurchaseMutations } from "@/hooks/use-card-mutations";
 import { useCreditCards } from "@/hooks/use-cards";
 import { useCategories } from "@/hooks/use-categories";
+import { installmentCompetences, splitInstallments } from "@/lib/finance";
 import {
-  installmentCompetences,
-  splitInstallments,
-} from "@/lib/finance";
-import { shortCompetenceLabel, toISODate } from "@/lib/dates";
+  competenceForPurchase,
+  shortCompetenceLabel,
+  toISODate,
+} from "@/lib/dates";
 
 const schema = z.object({
   card_id: z.string().min(1, "Escolha o cartão"),
@@ -103,20 +104,24 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
   const watchedTotal = form.watch("total_amount");
   const watchedCount = form.watch("installments_count");
   const watchedDate = form.watch("purchase_date");
+  const watchedCard = form.watch("card_id");
 
-  /** Prévia ao vivo: valor de cada parcela e mês em que a última cai. */
+  /**
+   * Prévia ao vivo. A primeira competência respeita o fechamento do cartão:
+   * comprar depois do fechamento joga tudo para a fatura seguinte.
+   */
   const preview = useMemo(() => {
     const total = parseCurrencyInput(String(watchedTotal ?? ""));
     const count = Number(watchedCount);
     if (!total || total <= 0 || !count || count < 1 || count > 120) return null;
 
+    const card = activeCards.find((c) => c.id === watchedCard);
+    if (!card || !watchedDate) return null;
+
     const parts = splitInstallments(total, count);
-    const base = watchedDate ? new Date(`${watchedDate}T00:00:00`) : new Date();
-    const competences = installmentCompetences(
-      base.getFullYear(),
-      base.getMonth() + 1,
-      count
-    );
+    const first = competenceForPurchase(watchedDate, card.closing_day);
+    const competences = installmentCompetences(first.year, first.month, count);
+    const purchaseDay = new Date(`${watchedDate}T00:00:00`).getDate();
 
     return {
       first: parts[0],
@@ -124,11 +129,12 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
       uneven: parts[0] !== parts[count - 1],
       endsAt: shortCompetenceLabel(competences[count - 1]),
       startsAt: shortCompetenceLabel(competences[0]),
+      shifted: purchaseDay > card.closing_day,
+      closingDay: card.closing_day,
     };
-  }, [watchedTotal, watchedCount, watchedDate]);
+  }, [watchedTotal, watchedCount, watchedDate, watchedCard, activeCards]);
 
   async function onSubmit(values: OutputValues) {
-    const base = new Date(`${values.purchase_date}T00:00:00`);
     await create.mutateAsync({
       cardId: values.card_id,
       categoryId: values.category_id,
@@ -136,10 +142,6 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
       totalAmount: values.total_amount,
       installmentsCount: values.installments_count,
       purchaseDate: values.purchase_date,
-      firstCharge: {
-        year: base.getFullYear(),
-        month: base.getMonth() + 1,
-      },
     });
     onOpenChange(false);
   }
@@ -289,6 +291,12 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
                     {preview.endsAt}
                   </span>
                 </p>
+                {preview.shifted && (
+                  <p className="text-amber-400">
+                    Compra após o fechamento (dia {preview.closingDay}) — cai na
+                    fatura seguinte.
+                  </p>
+                )}
               </div>
             )}
 

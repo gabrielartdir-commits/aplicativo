@@ -39,6 +39,7 @@ function useInvalidateCards() {
 
 export function useCreditCardMutations() {
   const invalidate = useInvalidateCards();
+  const { data: month } = useCurrentMonth();
 
   const create = useMutation({
     mutationFn: (input: CreditCardInsert) => creditCardRepository.create(input),
@@ -51,13 +52,13 @@ export function useCreditCardMutations() {
 
   const update = useMutation({
     mutationFn: ({ id, ...patch }: CreditCardUpdate & { id: string }) =>
-      creditCardRepository.update(id, patch),
+      cardService.updateCard(id, patch, month ?? null),
     onSuccess: invalidate,
     onError: (error) => toast.error(error.message),
   });
 
   const remove = useMutation({
-    mutationFn: (id: string) => creditCardRepository.remove(id),
+    mutationFn: (id: string) => cardService.removeCard(id, month ?? null),
     onSuccess: () => {
       invalidate();
       toast.success("Cartão removido.");

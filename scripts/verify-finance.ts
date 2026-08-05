@@ -14,6 +14,11 @@ import {
   installmentCompetences,
   splitInstallments,
 } from "../lib/finance/calculations";
+import {
+  competenceForPurchase,
+  invoiceDueDate,
+  isBeforeCompetence,
+} from "../lib/dates";
 
 let failures = 0;
 
@@ -159,6 +164,75 @@ expectEqual("1ª parcela: mês", comps[0].month, 11);
 expectEqual("1ª parcela: ano", comps[0].year, 2026);
 expectEqual("última parcela: mês", comps[4].month, 3);
 expectEqual("última parcela: ano", comps[4].year, 2027);
+
+// ---------------------------------------------------------------------------
+// FECHAMENTO DO CARTÃO — em qual fatura a compra cai
+// ---------------------------------------------------------------------------
+
+// Cartão fecha dia 28. Compra no dia 5 entra na fatura do próprio mês.
+const antes = competenceForPurchase("2026-08-05", 28);
+expectEqual("compra antes do fechamento: mês", antes.month, 8);
+expectEqual("compra antes do fechamento: ano", antes.year, 2026);
+
+// Compra no dia 29 já pegou a fatura fechada: cai na seguinte.
+const depois = competenceForPurchase("2026-08-29", 28);
+expectEqual("compra após o fechamento: mês", depois.month, 9);
+expectEqual("compra após o fechamento: ano", depois.year, 2026);
+
+// No próprio dia do fechamento ainda entra na fatura do mês.
+const noDia = competenceForPurchase("2026-08-28", 28);
+expectEqual("compra no dia do fechamento: mês", noDia.month, 8);
+
+// Virada de ano: compra em 30/dez com fechamento dia 28 vai para jan do ano seguinte.
+const virada = competenceForPurchase("2026-12-30", 28);
+expectEqual("virada de ano: mês", virada.month, 1);
+expectEqual("virada de ano: ano", virada.year, 2027);
+
+// ---------------------------------------------------------------------------
+// VENCIMENTO DA FATURA — sempre depois do fechamento
+// ---------------------------------------------------------------------------
+
+// Fecha 28, vence 10: a fatura de agosto é paga em 10 de SETEMBRO.
+expectEqual(
+  "vence no mês seguinte (fecha 28, vence 10)",
+  Number(invoiceDueDate({ year: 2026, month: 8 }, 28, 10).slice(5, 7)),
+  9
+);
+
+// Fecha 5, vence 15: os dois caem no mesmo mês.
+expectEqual(
+  "vence no mesmo mês (fecha 5, vence 15)",
+  Number(invoiceDueDate({ year: 2026, month: 8 }, 5, 15).slice(5, 7)),
+  8
+);
+
+// Dia 31 num mês de 30 cai no último dia, nunca vaza para o mês seguinte.
+expectEqual(
+  "vencimento dia 31 em abril vira 30",
+  Number(invoiceDueDate({ year: 2026, month: 4 }, 1, 31).slice(8, 10)),
+  30
+);
+
+// ---------------------------------------------------------------------------
+// ASSINATURA NÃO RETROAGE
+// ---------------------------------------------------------------------------
+
+const inicio = { year: 2026, month: 8 };
+expectEqual(
+  "assinatura de ago não vale em jul",
+  isBeforeCompetence({ year: 2026, month: 7 }, inicio) ? 1 : 0,
+  1
+);
+expectEqual(
+  "assinatura de ago vale em ago",
+  isBeforeCompetence(inicio, inicio) ? 1 : 0,
+  0
+);
+expectEqual(
+  "assinatura de ago vale em set",
+  isBeforeCompetence({ year: 2026, month: 9 }, inicio) ? 1 : 0,
+  0
+);
 
 if (failures > 0) {
   console.error(`\n${failures} verificação(ões) falharam.`);
