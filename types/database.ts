@@ -15,6 +15,7 @@ export type Json =
 export type TransactionType = "expense" | "income" | "adjustment" | "investment";
 export type TransactionSource = "manual" | "ai" | "simulation";
 export type AdjustmentType = "entry" | "exit" | "correction" | "transfer";
+export type PaymentMethod = "credit" | "debit";
 
 export type Database = {
   public: {
@@ -54,6 +55,7 @@ export type Database = {
           bank_balance: number;
           reserved_fixed_expenses: number;
           reserved_investment: number;
+          reserved_invoices: number;
           available_balance: number;
           closed: boolean;
           created_at: string;
@@ -68,6 +70,7 @@ export type Database = {
           bank_balance?: number;
           reserved_fixed_expenses?: number;
           reserved_investment?: number;
+          reserved_invoices?: number;
           available_balance?: number;
           closed?: boolean;
           created_at?: string;
@@ -82,6 +85,7 @@ export type Database = {
           bank_balance?: number;
           reserved_fixed_expenses?: number;
           reserved_investment?: number;
+          reserved_invoices?: number;
           available_balance?: number;
           closed?: boolean;
           created_at?: string;
@@ -311,6 +315,185 @@ export type Database = {
         };
         Relationships: [];
       };
+      credit_cards: {
+        Row: {
+          id: string;
+          name: string;
+          closing_day: number;
+          due_day: number;
+          credit_limit: number;
+          color: string | null;
+          active: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          closing_day: number;
+          due_day: number;
+          credit_limit?: number;
+          color?: string | null;
+          active?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          closing_day?: number;
+          due_day?: number;
+          credit_limit?: number;
+          color?: string | null;
+          active?: boolean;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      card_purchases: {
+        Row: {
+          id: string;
+          card_id: string;
+          category_id: string | null;
+          description: string;
+          total_amount: number;
+          installments_count: number;
+          purchase_date: string;
+          first_charge_year: number;
+          first_charge_month: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          card_id: string;
+          category_id?: string | null;
+          description: string;
+          total_amount: number;
+          installments_count?: number;
+          purchase_date?: string;
+          first_charge_year: number;
+          first_charge_month: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          card_id?: string;
+          category_id?: string | null;
+          description?: string;
+          total_amount?: number;
+          installments_count?: number;
+          purchase_date?: string;
+          first_charge_year?: number;
+          first_charge_month?: number;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      card_installments: {
+        Row: {
+          id: string;
+          purchase_id: string;
+          installment_no: number;
+          year: number;
+          month: number;
+          amount: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          purchase_id: string;
+          installment_no: number;
+          year: number;
+          month: number;
+          amount: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          purchase_id?: string;
+          installment_no?: number;
+          year?: number;
+          month?: number;
+          amount?: number;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      subscriptions: {
+        Row: {
+          id: string;
+          name: string;
+          amount: number;
+          billing_day: number;
+          payment_method: PaymentMethod;
+          card_id: string | null;
+          category_id: string | null;
+          active: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          amount: number;
+          billing_day: number;
+          payment_method?: PaymentMethod;
+          card_id?: string | null;
+          category_id?: string | null;
+          active?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          amount?: number;
+          billing_day?: number;
+          payment_method?: PaymentMethod;
+          card_id?: string | null;
+          category_id?: string | null;
+          active?: boolean;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      card_invoices: {
+        Row: {
+          id: string;
+          card_id: string;
+          year: number;
+          month: number;
+          installments_total: number;
+          subscriptions_total: number;
+          /** Coluna gerada: installments_total + subscriptions_total. */
+          total: number;
+          due_date: string;
+          paid: boolean;
+          paid_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          card_id: string;
+          year: number;
+          month: number;
+          installments_total?: number;
+          subscriptions_total?: number;
+          due_date: string;
+          paid?: boolean;
+          paid_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          card_id?: string;
+          year?: number;
+          month?: number;
+          installments_total?: number;
+          subscriptions_total?: number;
+          due_date?: string;
+          paid?: boolean;
+          paid_at?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
@@ -318,6 +501,7 @@ export type Database = {
       transaction_type: TransactionType;
       transaction_source: TransactionSource;
       adjustment_type: AdjustmentType;
+      payment_method: PaymentMethod;
     };
     CompositeTypes: Record<string, never>;
   };

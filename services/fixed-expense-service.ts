@@ -29,7 +29,8 @@ async function syncMonthReservedFixedExpenses(monthId: string): Promise<void> {
     available_balance: computeAvailable(
       month.bank_balance,
       roundedUnpaid,
-      month.reserved_investment
+      month.reserved_investment,
+      month.reserved_invoices
     ),
   });
 }
@@ -77,7 +78,8 @@ export const fixedExpenseService = {
       available_balance: computeAvailable(
         newBankBalance,
         roundedUnpaid,
-        month.reserved_investment
+        month.reserved_investment,
+        month.reserved_invoices
       ),
     });
   },

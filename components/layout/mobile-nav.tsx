@@ -18,6 +18,9 @@ import {
   X,
   PlusCircle,
   PiggyBank,
+  CalendarRange,
+  RefreshCw,
+  CreditCard as CreditCardIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCurrentMonth } from "@/hooks/use-current-month";
@@ -51,6 +54,9 @@ export function MobileNav() {
 
   const extraItems = [
     { label: "Gastos Fixos", href: "/gastos-fixos", icon: Repeat },
+    { label: "Parcelas", href: "/parcelas", icon: CalendarRange },
+    { label: "Assinaturas", href: "/assinaturas", icon: RefreshCw },
+    { label: "Faturas", href: "/faturas", icon: CreditCardIcon },
     { label: "Investimentos", href: "/investimentos", icon: TrendingUp },
     { label: "Insights", href: "/insights", icon: Lightbulb },
     { label: "Configurações", href: "/configuracoes", icon: Settings },

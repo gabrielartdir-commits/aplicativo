@@ -34,7 +34,7 @@ import { vaultRepository } from "@/services/repositories/vault-repository";
 import { monthService } from "@/services/month-service";
 import { formatDate, parseCurrencyInput } from "@/utils/format";
 import { createClient } from "@/lib/supabase/client";
-import { round2 } from "@/lib/finance";
+import { round2, computeAvailable } from "@/lib/finance";
 
 export function SettingsView() {
   const queryClient = useQueryClient();
@@ -122,8 +122,11 @@ export function SettingsView() {
       const bank_balance = round2(
         currentMonth.starting_balance + currentMonth.salary + currentMonth.extra_income
       );
-      const available_balance = round2(
-        bank_balance - currentMonth.reserved_fixed_expenses - currentMonth.reserved_investment
+      const available_balance = computeAvailable(
+        bank_balance,
+        currentMonth.reserved_fixed_expenses,
+        currentMonth.reserved_investment,
+        currentMonth.reserved_invoices
       );
 
       const { error: monthError } = await supabase

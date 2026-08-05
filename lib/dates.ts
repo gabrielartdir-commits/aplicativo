@@ -21,6 +21,32 @@ export function monthLabel({ year, month }: YearMonth): string {
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
+export function nextYearMonth({ year, month }: YearMonth): YearMonth {
+  return month === 12 ? { year: year + 1, month: 1 } : { year, month: month + 1 };
+}
+
+/** Rótulo curto de competência, como "nov/26" — usado no calendário de parcelas. */
+export function shortCompetenceLabel({ year, month }: YearMonth): string {
+  const names = [
+    "jan", "fev", "mar", "abr", "mai", "jun",
+    "jul", "ago", "set", "out", "nov", "dez",
+  ];
+  return `${names[month - 1]}/${String(year).slice(2)}`;
+}
+
+/**
+ * Data de vencimento dentro de uma competência.
+ * Um dia 31 num mês de 30 cai no último dia, nunca vaza para o mês seguinte.
+ */
+export function dueDateInMonth(
+  { year, month }: YearMonth,
+  day: number
+): string {
+  const lastDay = new Date(year, month, 0).getDate();
+  const safeDay = Math.min(day, lastDay);
+  return `${year}-${String(month).padStart(2, "0")}-${String(safeDay).padStart(2, "0")}`;
+}
+
 /** Data local no formato YYYY-MM-DD (coluna `date` do Postgres). */
 export function toISODate(date: Date = new Date()): string {
   const y = date.getFullYear();

@@ -2,11 +2,18 @@
  * Regras financeiras do BudgetOS — funções puras, sem I/O.
  *
  * Conceito central (Modelo de Reserva Inteligente):
- *   Dinheiro Disponível = Saldo bancário - Gastos fixos reservados - Reserva de investimento
+ *   Dinheiro Disponível = Saldo bancário
+ *                       - Gastos fixos reservados
+ *                       - Reserva de investimento
+ *                       - Faturas de cartão em aberto
  *
  * A meta de investimento é subtraída do disponível na abertura do mês.
  * Aportes dentro da meta reduzem a reserva e o banco (disponível não muda).
  * Aportes que excedem a reserva (ou aportes quando a meta é zero/pausada) saem do disponível.
+ *
+ * Crédito: a fatura em aberto é reservada assim que conhecida, como um gasto
+ * fixo. Assinaturas no crédito compõem a fatura e NÃO reservam por fora —
+ * contá-las duas vezes dobraria o mesmo compromisso.
  */
 import type { AdjustmentType } from "@/types/database";
 import type { Month } from "@/types/domain";
@@ -19,15 +26,19 @@ export interface MonthBalances {
   bank_balance: number;
   reserved_fixed_expenses: number;
   reserved_investment: number;
+  reserved_invoices: number;
   available_balance: number;
 }
 
 export function computeAvailable(
   bankBalance: number,
   reservedFixedExpenses: number,
-  reservedInvestment: number
+  reservedInvestment: number,
+  reservedInvoices: number = 0
 ): number {
-  return round2(bankBalance - reservedFixedExpenses - reservedInvestment);
+  return round2(
+    bankBalance - reservedFixedExpenses - reservedInvestment - reservedInvoices
+  );
 }
 
 export interface MonthOpeningInput {
@@ -36,6 +47,7 @@ export interface MonthOpeningInput {
   extraIncome: number;
   fixedExpensesTotal: number;
   investmentGoal: number;
+  invoicesTotal?: number;
 }
 
 /** Números de abertura de um novo mês financeiro. */
@@ -44,14 +56,17 @@ export function computeMonthOpening(input: MonthOpeningInput): MonthBalances {
     input.startingBalance + input.salary + input.extraIncome
   );
   const reservedInvestment = round2(input.investmentGoal);
+  const reservedInvoices = round2(input.invoicesTotal ?? 0);
   return {
     bank_balance: bankBalance,
     reserved_fixed_expenses: round2(input.fixedExpensesTotal),
     reserved_investment: reservedInvestment,
+    reserved_invoices: reservedInvoices,
     available_balance: computeAvailable(
       bankBalance,
       input.fixedExpensesTotal,
-      reservedInvestment
+      reservedInvestment,
+      reservedInvoices
     ),
   };
 }
@@ -67,14 +82,19 @@ function rebalance(
   const reserved_investment = round2(
     month.reserved_investment + (delta.reserved_investment ?? 0)
   );
+  const reserved_invoices = round2(
+    month.reserved_invoices + (delta.reserved_invoices ?? 0)
+  );
   return {
     bank_balance,
     reserved_fixed_expenses,
     reserved_investment,
+    reserved_invoices,
     available_balance: computeAvailable(
       bank_balance,
       reserved_fixed_expenses,
-      reserved_investment
+      reserved_investment,
+      reserved_invoices
     ),
   };
 }
@@ -113,6 +133,46 @@ export function applyFixedExpensePayment(
 }
 
 /**
+ * Pagamento da fatura do cartão: mesma mecânica do gasto fixo — sai do banco
+ * e da reserva de faturas ao mesmo tempo, então o disponível não muda.
+ * `paid = false` desfaz o pagamento.
+ */
+export function applyInvoicePayment(
+  month: Pick<Month, keyof MonthBalances>,
+  amount: number,
+  paid: boolean
+): MonthBalances {
+  const signed = paid ? -amount : amount;
+  return rebalance(month, {
+    bank_balance: signed,
+    reserved_invoices: signed,
+  });
+}
+
+/**
+ * Sincroniza a reserva de faturas com o total em aberto do mês.
+ * Usada quando parcelas ou assinaturas mudam e a fatura é recalculada.
+ */
+export function applyInvoicesTotalChange(
+  month: Pick<Month, keyof MonthBalances>,
+  openInvoicesTotal: number
+): MonthBalances {
+  const reserved_invoices = round2(openInvoicesTotal);
+  return {
+    bank_balance: month.bank_balance,
+    reserved_fixed_expenses: month.reserved_fixed_expenses,
+    reserved_investment: month.reserved_investment,
+    reserved_invoices,
+    available_balance: computeAvailable(
+      month.bank_balance,
+      month.reserved_fixed_expenses,
+      month.reserved_investment,
+      reserved_invoices
+    ),
+  };
+}
+
+/**
  * Aporte de investimento efetivado: reduz o banco.
  * A reserva de investimento é reduzida somente até 0 (não fica negativa).
  * Se o aporte exceder a reserva (investimento manual/extra), o excesso reduz o disponível.
@@ -126,10 +186,12 @@ export function applyInvestment(
     bank_balance: month.bank_balance,
     reserved_fixed_expenses: month.reserved_fixed_expenses,
     reserved_investment: newReserved,
+    reserved_invoices: month.reserved_invoices,
     available_balance: computeAvailable(
       month.bank_balance,
       month.reserved_fixed_expenses,
-      newReserved
+      newReserved,
+      month.reserved_invoices
     ),
   };
 }
@@ -171,10 +233,44 @@ export function applyInvestmentGoalChange(
     bank_balance: month.bank_balance,
     reserved_fixed_expenses: month.reserved_fixed_expenses,
     reserved_investment,
+    reserved_invoices: month.reserved_invoices,
     available_balance: computeAvailable(
       month.bank_balance,
       month.reserved_fixed_expenses,
-      reserved_investment
+      reserved_investment,
+      month.reserved_invoices
     ),
   };
+}
+
+/**
+ * Divide o total de uma compra em N parcelas de centavos exatos.
+ * O resíduo do arredondamento vai na última parcela, para que a soma das
+ * partes seja sempre igual ao total — nunca um centavo a mais ou a menos.
+ */
+export function splitInstallments(total: number, count: number): number[] {
+  if (count < 1) throw new Error("A compra precisa de ao menos uma parcela.");
+  const base = Math.floor((total * 100) / count) / 100;
+  const parts = Array.from({ length: count }, () => base);
+  const distributed = round2(base * count);
+  parts[count - 1] = round2(base + (round2(total) - distributed));
+  return parts;
+}
+
+/**
+ * Competência (ano/mês) de cada parcela a partir da primeira cobrança.
+ * A parcela 1 cai no mês informado; as seguintes avançam um mês por vez.
+ */
+export function installmentCompetences(
+  firstYear: number,
+  firstMonth: number,
+  count: number
+): { year: number; month: number }[] {
+  return Array.from({ length: count }, (_, i) => {
+    const zeroBased = firstMonth - 1 + i;
+    return {
+      year: firstYear + Math.floor(zeroBased / 12),
+      month: (zeroBased % 12) + 1,
+    };
+  });
 }

@@ -8,7 +8,11 @@ import {
   applyFixedExpensePayment,
   applyIncome,
   applyInvestment,
+  applyInvoicePayment,
+  applyInvoicesTotalChange,
   computeMonthOpening,
+  installmentCompetences,
+  splitInstallments,
 } from "../lib/finance/calculations";
 
 let failures = 0;
@@ -99,10 +103,62 @@ expectEqual("excesso: disponível cai", afterExcess.available_balance, 2148);
 
 // Arredondamento: 0.1 + 0.2 não pode virar 0.30000000000000004.
 const rounding = applyExpense(
-  { bank_balance: 0.3, reserved_fixed_expenses: 0, reserved_investment: 0, available_balance: 0.3 },
+  {
+    bank_balance: 0.3,
+    reserved_fixed_expenses: 0,
+    reserved_investment: 0,
+    reserved_invoices: 0,
+    available_balance: 0.3,
+  },
   0.1
 );
 expectEqual("arredondamento", rounding.bank_balance, 0.2);
+
+// ---------------------------------------------------------------------------
+// CRÉDITO — faturas, parcelas e assinaturas
+// ---------------------------------------------------------------------------
+
+// Fatura conhecida de 800 reserva do disponível assim que entra.
+const withInvoice = applyInvoicesTotalChange(afterUnpaid, 800);
+expectEqual("fatura: saldo bancário intacto", withInvoice.bank_balance, 5948);
+expectEqual("fatura: reserva de faturas", withInvoice.reserved_invoices, 800);
+expectEqual("fatura: disponível cai 800", withInvoice.available_balance, 1848);
+
+// Pagar a fatura: sai do banco E da reserva — disponível não muda.
+const invoicePaid = applyInvoicePayment(withInvoice, 800, true);
+expectEqual("fatura paga: saldo bancário", invoicePaid.bank_balance, 5148);
+expectEqual("fatura paga: reserva zera", invoicePaid.reserved_invoices, 0);
+expectEqual("fatura paga: disponível inalterado", invoicePaid.available_balance, 1848);
+
+// Desfazer o pagamento devolve os dois lados.
+const invoiceUndone = applyInvoicePayment(invoicePaid, 800, false);
+expectEqual("fatura desfeita: saldo bancário", invoiceUndone.bank_balance, 5948);
+expectEqual("fatura desfeita: reserva volta", invoiceUndone.reserved_invoices, 800);
+expectEqual("fatura desfeita: disponível", invoiceUndone.available_balance, 1848);
+
+// Divisão de parcelas: a soma das partes tem que bater com o total exato.
+const split3 = splitInstallments(100, 3);
+expectEqual("parcela 1 de 100/3", split3[0], 33.33);
+expectEqual("parcela 3 de 100/3 (resíduo)", split3[2], 33.34);
+expectEqual(
+  "soma das parcelas = total",
+  split3.reduce((a, b) => a + b, 0),
+  100
+);
+
+const split7 = splitInstallments(1000, 7);
+expectEqual(
+  "1000 em 7x soma exata",
+  Math.round(split7.reduce((a, b) => a + b, 0) * 100) / 100,
+  1000
+);
+
+// Competências: 5 parcelas a partir de nov/2026 terminam em mar/2027.
+const comps = installmentCompetences(2026, 11, 5);
+expectEqual("1ª parcela: mês", comps[0].month, 11);
+expectEqual("1ª parcela: ano", comps[0].year, 2026);
+expectEqual("última parcela: mês", comps[4].month, 3);
+expectEqual("última parcela: ano", comps[4].year, 2027);
 
 if (failures > 0) {
   console.error(`\n${failures} verificação(ões) falharam.`);

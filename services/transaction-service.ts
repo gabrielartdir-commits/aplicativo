@@ -1,4 +1,10 @@
-import { applyExpense, applyIncome, applyInvestment, round2 } from "@/lib/finance";
+import {
+  applyExpense,
+  applyIncome,
+  applyInvestment,
+  round2,
+  computeAvailable,
+} from "@/lib/finance";
 import { toISODate } from "@/lib/dates";
 import type { TransactionSource } from "@/types/database";
 import type { Month, Transaction } from "@/types/domain";
@@ -122,7 +128,12 @@ export const transactionService = {
     const newReserved = Math.max(goal, totalInvested);
     await monthRepository.update(input.month.id, {
       reserved_investment: newReserved,
-      available_balance: round2(input.month.bank_balance - input.month.reserved_fixed_expenses - newReserved)
+      available_balance: computeAvailable(
+        input.month.bank_balance,
+        input.month.reserved_fixed_expenses,
+        newReserved,
+        input.month.reserved_invoices
+      ),
     });
 
     return transaction;
@@ -178,7 +189,12 @@ export const transactionService = {
       const newReserved = Math.max(goal, totalInvested);
       await monthRepository.update(month.id, {
         reserved_investment: newReserved,
-        available_balance: round2(month.bank_balance - month.reserved_fixed_expenses - newReserved)
+        available_balance: computeAvailable(
+          month.bank_balance,
+          month.reserved_fixed_expenses,
+          newReserved,
+          month.reserved_invoices
+        ),
       });
     }
 
@@ -245,7 +261,12 @@ export const transactionService = {
       const newReserved = Math.max(goal, totalInvested);
       currentMonthState = await monthRepository.update(month.id, {
         reserved_investment: newReserved,
-        available_balance: round2(currentMonthState.bank_balance - currentMonthState.reserved_fixed_expenses - newReserved)
+        available_balance: computeAvailable(
+          currentMonthState.bank_balance,
+          currentMonthState.reserved_fixed_expenses,
+          newReserved,
+          currentMonthState.reserved_invoices
+        ),
       });
     }
 
@@ -289,7 +310,12 @@ export const transactionService = {
       const newReserved = Math.max(goal, totalInvested);
       currentMonthState = await monthRepository.update(month.id, {
         reserved_investment: newReserved,
-        available_balance: round2(currentMonthState.bank_balance - currentMonthState.reserved_fixed_expenses - newReserved)
+        available_balance: computeAvailable(
+          currentMonthState.bank_balance,
+          currentMonthState.reserved_fixed_expenses,
+          newReserved,
+          currentMonthState.reserved_invoices
+        ),
       });
     }
 
