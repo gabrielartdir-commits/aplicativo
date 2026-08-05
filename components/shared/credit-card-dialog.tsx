@@ -32,9 +32,11 @@ const schema = z.object({
     .int("Dia inválido")
     .min(1, "Entre 1 e 31")
     .max(31, "Entre 1 e 31"),
+  // Campo opcional: vazio vale zero, senão parseCurrencyInput devolveria NaN
+  // e a validação barraria o cartão sem limite informado.
   credit_limit: z
     .string()
-    .transform(parseCurrencyInput)
+    .transform((v) => (v.trim() === "" ? 0 : parseCurrencyInput(v)))
     .pipe(z.number().min(0, "O limite não pode ser negativo")),
   active: z.boolean(),
 });
