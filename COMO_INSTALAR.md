@@ -81,10 +81,10 @@ O cliente aceita qualquer provedor compatível com a API de chat completions da 
 Exemplos de configuração:
 
 ```env
-# Groq — possui tier gratuito
+# Groq — possui plano gratuito
 AI_BASE_URL=https://api.groq.com/openai/v1
 AI_API_KEY=gsk_...
-AI_MODEL=llama-3.3-70b-versatile
+AI_MODEL=openai/gpt-oss-120b
 
 # OpenAI
 AI_API_KEY=sk-...
@@ -93,7 +93,18 @@ AI_MODEL=gpt-4o-mini
 
 Coloque as mesmas variáveis na Vercel em **Settings → Environment Variables**. Variável nova só passa a valer em um deploy novo.
 
-> O copiloto pede a resposta em *Structured Outputs* (JSON obedecendo a um schema). Se o provedor não suportar, o cliente repete a chamada no modo JSON genérico automaticamente.
+### Escolha do modelo
+
+O copiloto pede a resposta em *Structured Outputs* — JSON obedecendo a um schema — porque o resultado é gravado direto no banco. **Nem todo modelo suporta isso**, e a escolha importa:
+
+| Modelo (Groq) | `json_schema` | Observação |
+| --- | --- | --- |
+| `openai/gpt-oss-120b` | ✅ estrito | Recomendado. O provedor garante o formato |
+| `openai/gpt-oss-20b` | ✅ estrito | Mais rápido, modelo menor |
+| `llama-3.3-70b-versatile` | ❌ | Cai no fallback descrito abaixo |
+| `llama-3.1-8b-instant` | ❌ | Cai no fallback. O mais econômico |
+
+Se o provedor recusar o `json_schema`, o cliente repete a chamada no modo JSON genérico, com o schema embutido no prompt. Funciona, mas sem garantia do provedor — em modelos menores isso aumenta a chance de extração imprecisa. Para o simulador, que devolve texto livre, qualquer modelo serve.
 
 ---
 
