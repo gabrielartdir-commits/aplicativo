@@ -1,0 +1,27 @@
+name: Deploy on Vercel
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy on Vercel
+        uses: UnlyEd/github-action-deploy-on-vercel@v1.2.7
+        with:
+          command: "vercel --prod --yes --token ${{ secrets.VERCEL_TOKEN }}"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          # A pasta .vercel nao vai para o repositorio, entao o CLI precisa
+          # dos identificadores do projeto por variavel de ambiente.
+          VERCEL_ORG_ID: team_6zcct1dNuXnIJ7DGTyilAfD6
+          VERCEL_PROJECT_ID: prj_eTX7i1f3GBqC62fVqVcyo89EpkdQ
+
+      - name: Mostrar URL do deploy
+        run: echo "Deploy publicado em ${{ env.VERCEL_DEPLOYMENT_URL }}"
