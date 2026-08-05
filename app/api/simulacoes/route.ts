@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { monthRepository } from "@/services/repositories/month-repository";
 import { budgetRepository } from "@/services/repositories/budget-repository";
+import { chatCompletion } from "@/lib/ai";
 
 export async function POST(req: NextRequest) {
   try {
@@ -65,35 +66,11 @@ DIRETRIZES DE RESPOSTA:
    [🛒 Monitor R$ 1.500] ➔ [📂 Categoria: Lazer] ➔ [📉 Saldo Disponível: R$ 300] ➔ [💡 Sugestão: Remanejar R$ 200 de Restaurantes]
 `;
 
-    if (!process.env.OPENAI_API_KEY) {
-      throw new Error("OPENAI_API_KEY não configurada.");
-    }
-
-    const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
-
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: message },
-        ],
-        temperature: 0.2,
-      }),
+    const reply = await chatCompletion({
+      systemPrompt,
+      userMessage: message,
+      temperature: 0.2,
     });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`OpenAI API error: ${response.status} - ${errText}`);
-    }
-
-    const responseData = await response.json();
-    const reply = responseData.choices?.[0]?.message?.content || "Sem resposta.";
 
     return NextResponse.json({ reply });
   } catch (error) {

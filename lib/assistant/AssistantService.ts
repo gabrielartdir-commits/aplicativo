@@ -17,6 +17,7 @@ import { fixedExpenseService } from "@/services/fixed-expense-service";
 import { balanceService } from "@/services/balance-service";
 import { aiConversationRepository } from "@/services/repositories/ai-conversation-repository";
 import { formatCurrency } from "@/utils/format";
+import { chatCompletion } from "@/lib/ai";
 import type { Json } from "@/types/database";
 import type { BudgetWithCategory, FixedExpense, Month } from "@/types/domain";
 
@@ -140,44 +141,15 @@ export const AssistantService = {
       })),
     };
 
-    // 3. Chamar a API da OpenAI com Structured Outputs
-    if (!process.env.OPENAI_API_KEY) {
-      throw new Error("A variável de ambiente OPENAI_API_KEY não está configurada.");
-    }
-
+    // 3. Chamar a IA com Structured Outputs
     const systemPrompt = buildSystemPrompt(promptContext);
-    const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: message },
-        ],
-        response_format: {
-          type: "json_schema",
-          json_schema: ASSISTANT_JSON_SCHEMA,
-        },
-        temperature: 0.1,
-      }),
+    const parsedRaw = await chatCompletion({
+      systemPrompt,
+      userMessage: message,
+      temperature: 0.1,
+      jsonSchema: ASSISTANT_JSON_SCHEMA,
     });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`Erro na API da OpenAI: ${response.status} - ${errText}`);
-    }
-
-    const responseData = await response.json();
-    const parsedRaw = responseData.choices?.[0]?.message?.content;
-    if (!parsedRaw) {
-      throw new Error("Resposta da OpenAI veio vazia.");
-    }
 
     const aiOutput: AssistantParsedOutput = JSON.parse(parsedRaw);
     const { actions } = aiOutput;

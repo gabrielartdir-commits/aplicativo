@@ -43,6 +43,7 @@ O BudgetOS utiliza o Supabase para guardar as suas transações, categorias e co
    NEXT_PUBLIC_SUPABASE_URL=cole_aqui_a_sua_project_url
    NEXT_PUBLIC_SUPABASE_ANON_KEY=cole_aqui_a_sua_api_key_anon
    ```
+   * *Se quiser usar o copiloto de IA e o simulador, acrescente também as variáveis descritas no [Passo 4](#-passo-4-configurando-a-ia-opcional).*
 4. Inicie o servidor de desenvolvimento local:
    ```bash
    npm run dev
@@ -62,6 +63,37 @@ Para colocar o aplicativo na internet para que você (ou qualquer amigo) possa a
    * Nome: `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Valor: *Sua API Key anon*
 4. Clique em **Deploy**!
    * *O Vercel vai compilar o código e gerar um link público do seu app em instantes.*
+
+---
+
+## 🤖 Passo 4: Configurando a IA (opcional)
+
+O copiloto (entrada em linguagem natural, tipo *"gastei 45 no almoço"*) e o simulador de compras usam uma API de IA. **O resto do aplicativo funciona normalmente sem isso** — você só perde o atalho de digitar em vez de preencher formulário.
+
+O cliente aceita qualquer provedor compatível com a API de chat completions da OpenAI. Configure três variáveis:
+
+| Variável | Descrição | Padrão |
+| --- | --- | --- |
+| `AI_API_KEY` | Chave do provedor | *(obrigatória)* |
+| `AI_BASE_URL` | URL base da API | `https://api.openai.com/v1` |
+| `AI_MODEL` | Nome do modelo | `gpt-4o-mini` |
+
+Exemplos de configuração:
+
+```env
+# Groq — possui tier gratuito
+AI_BASE_URL=https://api.groq.com/openai/v1
+AI_API_KEY=gsk_...
+AI_MODEL=llama-3.3-70b-versatile
+
+# OpenAI
+AI_API_KEY=sk-...
+AI_MODEL=gpt-4o-mini
+```
+
+Coloque as mesmas variáveis na Vercel em **Settings → Environment Variables**. Variável nova só passa a valer em um deploy novo.
+
+> O copiloto pede a resposta em *Structured Outputs* (JSON obedecendo a um schema). Se o provedor não suportar, o cliente repete a chamada no modo JSON genérico automaticamente.
 
 ---
 

@@ -48,8 +48,11 @@ features/       Cada funcionalidade isolada: componentes, hooks e schemas própr
   transactions/ Lançamentos (reservado).
 hooks/          Hooks globais de dados (TanStack Query) e mutações compartilhadas.
 lib/            Infraestrutura: clientes Supabase, navegação, cn(), crypto da chave.
+  ai.ts         Cliente de IA para provedores compatíveis com a API da OpenAI
+                (OpenAI, Groq, OpenRouter…). Trocar de provedor é só mexer em
+                AI_BASE_URL, AI_API_KEY e AI_MODEL — ver COMO_INSTALAR.md.
   finance/      REGRAS FINANCEIRAS — funções puras (disponível, reservas, ajustes).
-  assistant/    IA real (OpenAI, Structured Outputs): prompt com contexto do mês,
+  assistant/    IA real (Structured Outputs): prompt com contexto do mês,
                 schema JSON, executor de ações (gasto, receita, pagar fixo, ajuste,
                 perguntas). Roda só no servidor via app/api/assistant/route.ts.
 services/       Orquestração com efeitos: monthService, transactionService,
