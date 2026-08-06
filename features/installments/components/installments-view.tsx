@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CalendarRange,
   CreditCard as CardIcon,
@@ -16,7 +16,11 @@ import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PurchaseDialog } from "@/components/shared/purchase-dialog";
 import { useCurrentMonth } from "@/hooks/use-current-month";
-import { useCardPurchases, useUpcomingInstallments } from "@/hooks/use-cards";
+import {
+  useCardPurchases,
+  useCreditCards,
+  useUpcomingInstallments,
+} from "@/hooks/use-cards";
 import { usePurchaseMutations } from "@/hooks/use-card-mutations";
 import { shortCompetenceLabel } from "@/lib/dates";
 import { cn } from "@/lib/utils";
@@ -57,6 +61,7 @@ function paidCount(
 export function InstallmentsView() {
   const { data: month } = useCurrentMonth();
   const { data: purchases } = useCardPurchases();
+  const { data: cards } = useCreditCards();
   const { data: upcoming } = useUpcomingInstallments(month?.year, month?.month);
   const { remove } = usePurchaseMutations();
 
@@ -73,7 +78,41 @@ export function InstallmentsView() {
     setDialogOpen(true);
   }
 
-  const list = useMemo(() => purchases ?? [], [purchases]);
+  /**
+   * Filtro por cartão. `null` mostra todos. O recorte vale para a tela
+   * inteira — resumo, calendário e listas — para os números baterem com o
+   * cartão selecionado.
+   */
+  const [cardFilter, setCardFilter] = useState<string | null>(null);
+
+  /** Só cartões que realmente têm compra viram botão de filtro. */
+  const filterCards = useMemo(() => {
+    const withPurchases = new Set((purchases ?? []).map((p) => p.card_id));
+    return (cards ?? []).filter((c) => withPurchases.has(c.id));
+  }, [cards, purchases]);
+
+  // Cartão filtrado que deixa de ter compras volta o filtro para "Todos".
+  useEffect(() => {
+    if (cardFilter && !filterCards.some((c) => c.id === cardFilter)) {
+      setCardFilter(null);
+    }
+  }, [cardFilter, filterCards]);
+
+  const list = useMemo(
+    () =>
+      (purchases ?? []).filter(
+        (p) => !cardFilter || p.card_id === cardFilter
+      ),
+    [purchases, cardFilter]
+  );
+
+  const visibleInstallments = useMemo(
+    () =>
+      (upcoming ?? []).filter(
+        (i) => !cardFilter || i.purchase.card_id === cardFilter
+      ),
+    [upcoming, cardFilter]
+  );
 
   /**
    * Só o que ainda tem parcela a vencer aparece como ativo, ordenado por
@@ -108,21 +147,21 @@ export function InstallmentsView() {
   /** Parcela deste mês somada — é o que já está dentro da sua fatura. */
   const thisMonthTotal = useMemo(() => {
     if (!month) return 0;
-    return (upcoming ?? [])
+    return visibleInstallments
       .filter((i) => i.year === month.year && i.month === month.month)
       .reduce((sum, i) => sum + Number(i.amount), 0);
-  }, [upcoming, month]);
+  }, [visibleInstallments, month]);
 
   /** Tudo que ainda falta pagar, somando todas as parcelas futuras. */
   const futureTotal = useMemo(
-    () => (upcoming ?? []).reduce((sum, i) => sum + Number(i.amount), 0),
-    [upcoming]
+    () => visibleInstallments.reduce((sum, i) => sum + Number(i.amount), 0),
+    [visibleInstallments]
   );
 
   /** Calendário: total comprometido por competência, daqui pra frente. */
   const calendar = useMemo(() => {
     const map = new Map<string, { year: number; month: number; total: number; count: number }>();
-    for (const inst of upcoming ?? []) {
+    for (const inst of visibleInstallments) {
       const key = `${inst.year}-${inst.month}`;
       const entry = map.get(key) ?? {
         year: inst.year,
@@ -137,7 +176,7 @@ export function InstallmentsView() {
     return [...map.values()]
       .sort((a, b) => a.year - b.year || a.month - b.month)
       .slice(0, 12);
-  }, [upcoming]);
+  }, [visibleInstallments]);
 
   const peak = Math.max(...calendar.map((c) => c.total), 1);
 
@@ -152,6 +191,37 @@ export function InstallmentsView() {
           Nova compra
         </Button>
       </PageHeader>
+
+      {/* Filtro por cartão */}
+      {filterCards.length > 1 && (
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 md:mx-0 md:px-0 [scrollbar-width:none]">
+          <button
+            onClick={() => setCardFilter(null)}
+            className={cn(
+              "shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-all active:scale-95",
+              cardFilter === null
+                ? "border-primary/30 bg-primary/10 text-primary"
+                : "border-border/40 bg-card text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Todos
+          </button>
+          {filterCards.map((card) => (
+            <button
+              key={card.id}
+              onClick={() => setCardFilter(card.id)}
+              className={cn(
+                "shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-all active:scale-95",
+                cardFilter === card.id
+                  ? "border-primary/30 bg-primary/10 text-primary"
+                  : "border-border/40 bg-card text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {card.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Resumo */}
       <div className="grid grid-cols-2 gap-2 md:gap-4 md:grid-cols-3">
