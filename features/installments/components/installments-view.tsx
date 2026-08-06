@@ -23,6 +23,18 @@ import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils/format";
 import type { PurchaseWithInstallments } from "@/types/domain";
 
+/** Competência da última parcela — quando a compra sai do orçamento. */
+function lastCompetence(
+  purchase: PurchaseWithInstallments
+): { year: number; month: number } | null {
+  if (purchase.installments.length === 0) return null;
+  return purchase.installments.reduce((latest, i) =>
+    i.year > latest.year || (i.year === latest.year && i.month > latest.month)
+      ? i
+      : latest
+  );
+}
+
 /**
  * Quantas parcelas já venceram até a competência atual.
  *
@@ -63,12 +75,27 @@ export function InstallmentsView() {
 
   const list = useMemo(() => purchases ?? [], [purchases]);
 
-  /** Só o que ainda tem parcela a vencer aparece como ativo. */
+  /**
+   * Só o que ainda tem parcela a vencer aparece como ativo, ordenado por
+   * quando termina: o que sai do orçamento antes vem primeiro, e os
+   * parcelamentos longos ficam no fim.
+   */
   const active = useMemo(() => {
     if (!month) return [];
-    return list.filter(
-      (p) => paidCount(p, month.year, month.month) < p.installments_count
-    );
+    return list
+      .filter(
+        (p) => paidCount(p, month.year, month.month) < p.installments_count
+      )
+      .sort((a, b) => {
+        const endA = lastCompetence(a);
+        const endB = lastCompetence(b);
+        if (!endA || !endB) return 0;
+        return (
+          endA.year - endB.year ||
+          endA.month - endB.month ||
+          a.description.localeCompare(b.description, "pt-BR")
+        );
+      });
   }, [list, month]);
 
   const finished = useMemo(() => {
@@ -217,9 +244,7 @@ export function InstallmentsView() {
                 ? paidCount(purchase, month.year, month.month)
                 : 0;
               const ratio = done / purchase.installments_count;
-              const last = [...purchase.installments].sort(
-                (a, b) => a.year - b.year || a.month - b.month
-              )[purchase.installments.length - 1];
+              const last = lastCompetence(purchase);
               const perInstallment =
                 purchase.installments[0]?.amount ?? purchase.total_amount;
 
