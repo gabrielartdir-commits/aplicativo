@@ -17,10 +17,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCategoryMutations } from "@/hooks/use-category-mutations";
+import { EmojiPicker } from "./emoji-picker";
 import type { Category } from "@/types/domain";
 
 const schema = z.object({
-  emoji: z.string().min(1, "Escolha um emoji").max(8, "Use um único emoji"),
+  /** Vazio significa categoria sem emoji — escolha válida, não erro. */
+  emoji: z.string().max(8, "Use um único emoji"),
   name: z.string().min(1, "Informe um nome"),
   default_limit: z
     .string({ message: "Informe um limite" })
@@ -91,14 +93,13 @@ export function CategoryDialog({
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <div className="grid grid-cols-[80px_1fr] gap-3">
+          <div className="grid grid-cols-[92px_1fr] gap-3">
             <div className="space-y-2">
               <Label htmlFor="cat-emoji">Emoji</Label>
-              <Input
+              <EmojiPicker
                 id="cat-emoji"
-                placeholder="🍔"
-                className="text-center"
-                {...form.register("emoji")}
+                value={form.watch("emoji")}
+                onChange={(emoji) => form.setValue("emoji", emoji)}
               />
             </div>
             <div className="space-y-2">
