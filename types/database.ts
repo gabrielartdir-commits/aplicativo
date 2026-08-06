@@ -356,6 +356,8 @@ export type Database = {
           description: string;
           total_amount: number;
           installments_count: number;
+          /** Primeira parcela materializada; > 1 em compras já em andamento. */
+          first_installment_no: number;
           purchase_date: string;
           first_charge_year: number;
           first_charge_month: number;
@@ -368,6 +370,7 @@ export type Database = {
           description: string;
           total_amount: number;
           installments_count?: number;
+          first_installment_no?: number;
           purchase_date?: string;
           first_charge_year: number;
           first_charge_month: number;
@@ -380,6 +383,7 @@ export type Database = {
           description?: string;
           total_amount?: number;
           installments_count?: number;
+          first_installment_no?: number;
           purchase_date?: string;
           first_charge_year?: number;
           first_charge_month?: number;

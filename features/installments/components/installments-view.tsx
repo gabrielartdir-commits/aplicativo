@@ -17,15 +17,23 @@ import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils/format";
 import type { PurchaseWithInstallments } from "@/types/domain";
 
-/** Quantas parcelas já venceram até a competência atual. */
+/**
+ * Quantas parcelas já venceram até a competência atual.
+ *
+ * Compras cadastradas em andamento não têm as parcelas anteriores no banco —
+ * elas saíram de faturas que o app nunca viu. `first_installment_no` guarda
+ * quantas ficaram para trás, e elas contam como pagas.
+ */
 function paidCount(
   purchase: PurchaseWithInstallments,
   year: number,
   month: number
 ): number {
-  return purchase.installments.filter(
+  const before = purchase.first_installment_no - 1;
+  const elapsed = purchase.installments.filter(
     (i) => i.year < year || (i.year === year && i.month <= month)
   ).length;
+  return before + elapsed;
 }
 
 export function InstallmentsView() {
@@ -254,7 +262,15 @@ export function InstallmentsView() {
                     </div>
 
                     {/* Trilha de parcelas */}
-                    <div className="flex flex-wrap gap-1 pt-0.5">
+                    <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                      {purchase.first_installment_no > 1 && (
+                        <span
+                          title="Parcelas pagas antes do cadastro no app"
+                          className="rounded bg-accent/20 px-1.5 py-0.5 text-[9px] font-semibold text-muted-foreground"
+                        >
+                          {purchase.first_installment_no - 1}x antes
+                        </span>
+                      )}
                       {[...purchase.installments]
                         .sort((a, b) => a.installment_no - b.installment_no)
                         .map((inst) => {

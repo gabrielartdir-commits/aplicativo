@@ -41,6 +41,8 @@ export interface CreatePurchaseInput {
   description: string;
   totalAmount: number;
   installmentsCount: number;
+  /** Parcela em que a compra está hoje. 1 = compra nova. */
+  currentInstallment?: number;
   purchaseDate: string;
 }
 
@@ -142,11 +144,25 @@ export const cardService = {
     );
     if (!card) throw new Error("Cartão não encontrado.");
 
-    // Compra depois do fechamento já pegou a fatura fechada: cai na seguinte.
-    const firstCharge = competenceForPurchase(
-      input.purchaseDate,
-      card.closing_day
-    );
+    const firstNo = Math.max(1, input.currentInstallment ?? 1);
+    if (firstNo > input.installmentsCount) {
+      throw new Error(
+        "A parcela atual não pode ser maior que o total de parcelas."
+      );
+    }
+
+    /*
+     * Compra nova: a competência sai da data e do fechamento — comprou depois
+     * do fechamento, cai na fatura seguinte.
+     *
+     * Compra já em andamento: a parcela informada é a que está vencendo agora,
+     * então ela cai na competência do mês corrente. A data da compra é
+     * passado que o app não viu.
+     */
+    const firstCharge =
+      firstNo > 1 && month
+        ? { year: month.year, month: month.month }
+        : competenceForPurchase(input.purchaseDate, card.closing_day);
 
     const purchase = await cardPurchaseRepository.create({
       card_id: input.cardId,
@@ -154,25 +170,36 @@ export const cardService = {
       description: input.description,
       total_amount: input.totalAmount,
       installments_count: input.installmentsCount,
+      first_installment_no: firstNo,
       purchase_date: input.purchaseDate,
       first_charge_year: firstCharge.year,
       first_charge_month: firstCharge.month,
     });
 
-    const amounts = splitInstallments(input.totalAmount, input.installmentsCount);
+    /*
+     * O valor da parcela vem do total ORIGINAL dividido por TODAS as parcelas
+     * — 1200 em 12x na parcela 5 gera parcelas de 100, não de 150. Só as
+     * parcelas de firstNo em diante são materializadas; as anteriores saíram
+     * de faturas que o app nunca viu.
+     */
+    const allAmounts = splitInstallments(
+      input.totalAmount,
+      input.installmentsCount
+    );
+    const remaining = allAmounts.slice(firstNo - 1);
     const competences = installmentCompetences(
       firstCharge.year,
       firstCharge.month,
-      input.installmentsCount
+      remaining.length
     );
 
     await cardInstallmentRepository.createMany(
       competences.map((c, i) => ({
         purchase_id: purchase.id,
-        installment_no: i + 1,
+        installment_no: firstNo + i,
         year: c.year,
         month: c.month,
-        amount: amounts[i],
+        amount: remaining[i],
       }))
     );
 

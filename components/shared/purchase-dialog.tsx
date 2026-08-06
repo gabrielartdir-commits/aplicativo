@@ -26,7 +26,12 @@ import {
 import { usePurchaseMutations } from "@/hooks/use-card-mutations";
 import { useCreditCards } from "@/hooks/use-cards";
 import { useCategories } from "@/hooks/use-categories";
-import { installmentCompetences, splitInstallments } from "@/lib/finance";
+import {
+  installmentCompetences,
+  round2,
+  splitInstallments,
+} from "@/lib/finance";
+import { useCurrentMonth } from "@/hooks/use-current-month";
 import {
   competenceForPurchase,
   shortCompetenceLabel,
@@ -46,8 +51,17 @@ const schema = z.object({
     .int("Número inválido")
     .min(1, "No mínimo 1")
     .max(120, "No máximo 120"),
+  current_installment: z
+    .number({ message: "Informe a parcela atual" })
+    .int("Número inválido")
+    .min(1, "No mínimo 1")
+    .max(120, "No máximo 120"),
   purchase_date: z.string().min(1, "Informe a data"),
-});
+})
+  .refine((v) => v.current_installment <= v.installments_count, {
+    message: "Não pode ser maior que o total de parcelas",
+    path: ["current_installment"],
+  });
 
 type FormValues = z.input<typeof schema>;
 type OutputValues = z.output<typeof schema>;
@@ -61,6 +75,7 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
   const { create } = usePurchaseMutations();
   const { data: cards } = useCreditCards();
   const { data: categories } = useCategories();
+  const { data: month } = useCurrentMonth();
 
   const activeCards = useMemo(
     () => (cards ?? []).filter((c) => c.active),
@@ -88,6 +103,7 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
     description: "",
     total_amount: "",
     installments_count: 1,
+    current_installment: 1,
     purchase_date: toISODate(),
   };
 
@@ -103,6 +119,7 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
 
   const watchedTotal = form.watch("total_amount");
   const watchedCount = form.watch("installments_count");
+  const watchedCurrent = form.watch("current_installment");
   const watchedDate = form.watch("purchase_date");
   const watchedCard = form.watch("card_id");
 
@@ -113,26 +130,52 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
   const preview = useMemo(() => {
     const total = parseCurrencyInput(String(watchedTotal ?? ""));
     const count = Number(watchedCount);
+    const currentNo = Number(watchedCurrent);
     if (!total || total <= 0 || !count || count < 1 || count > 120) return null;
+    if (!currentNo || currentNo < 1 || currentNo > count) return null;
 
     const card = activeCards.find((c) => c.id === watchedCard);
     if (!card || !watchedDate) return null;
 
+    // O valor da parcela sai do total original dividido por todas as parcelas.
     const parts = splitInstallments(total, count);
-    const first = competenceForPurchase(watchedDate, card.closing_day);
-    const competences = installmentCompetences(first.year, first.month, count);
+    const remaining = parts.slice(currentNo - 1);
+
+    const inProgress = currentNo > 1;
+    const first =
+      inProgress && month
+        ? { year: month.year, month: month.month }
+        : competenceForPurchase(watchedDate, card.closing_day);
+    const competences = installmentCompetences(
+      first.year,
+      first.month,
+      remaining.length
+    );
     const purchaseDay = new Date(`${watchedDate}T00:00:00`).getDate();
 
     return {
-      first: parts[0],
-      last: parts[count - 1],
-      uneven: parts[0] !== parts[count - 1],
-      endsAt: shortCompetenceLabel(competences[count - 1]),
+      installment: remaining[0],
+      last: remaining[remaining.length - 1],
+      uneven: remaining[0] !== remaining[remaining.length - 1],
+      count,
+      remainingCount: remaining.length,
+      remainingTotal: round2(remaining.reduce((a, b) => a + b, 0)),
       startsAt: shortCompetenceLabel(competences[0]),
-      shifted: purchaseDay > card.closing_day,
+      endsAt: shortCompetenceLabel(competences[competences.length - 1]),
+      inProgress,
+      alreadyPaid: currentNo - 1,
+      shifted: !inProgress && purchaseDay > card.closing_day,
       closingDay: card.closing_day,
     };
-  }, [watchedTotal, watchedCount, watchedDate, watchedCard, activeCards]);
+  }, [
+    watchedTotal,
+    watchedCount,
+    watchedCurrent,
+    watchedDate,
+    watchedCard,
+    activeCards,
+    month,
+  ]);
 
   async function onSubmit(values: OutputValues) {
     await create.mutateAsync({
@@ -141,6 +184,7 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
       description: values.description,
       totalAmount: values.total_amount,
       installmentsCount: values.installments_count,
+      currentInstallment: values.current_installment,
       purchaseDate: values.purchase_date,
     });
     onOpenChange(false);
@@ -224,7 +268,7 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
                 )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="pu-count">Parcelas</Label>
+                <Label htmlFor="pu-count">Total de parcelas</Label>
                 <Input
                   id="pu-count"
                   type="number"
@@ -240,6 +284,29 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
                   </p>
                 )}
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="pu-current">Parcela atual</Label>
+              <Input
+                id="pu-current"
+                type="number"
+                min="1"
+                max="120"
+                {...form.register("current_installment", {
+                  valueAsNumber: true,
+                })}
+              />
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                Deixe 1 para uma compra nova. Se o parcelamento já começou,
+                informe a parcela que está vencendo agora — as anteriores não
+                entram no app.
+              </p>
+              {errors.current_installment && (
+                <p className="text-sm text-destructive">
+                  {errors.current_installment.message}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -277,7 +344,7 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
             {preview && (
               <div className="rounded-[16px] border border-primary/15 bg-primary/5 p-3.5 text-xs space-y-1.5">
                 <p className="font-semibold text-foreground">
-                  {watchedCount}x de {formatCurrency(preview.first)}
+                  {preview.count}x de {formatCurrency(preview.installment)}
                   {preview.uneven && (
                     <span className="font-normal text-muted-foreground">
                       {" "}
@@ -291,6 +358,20 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
                     {preview.endsAt}
                   </span>
                 </p>
+                {preview.inProgress && (
+                  <p className="text-muted-foreground">
+                    {preview.alreadyPaid} parcela
+                    {preview.alreadyPaid > 1 ? "s" : ""} já paga
+                    {preview.alreadyPaid > 1 ? "s" : ""} — entram{" "}
+                    <span className="font-semibold text-foreground">
+                      {preview.remainingCount} de {preview.count}
+                    </span>
+                    , somando{" "}
+                    <span className="font-semibold text-foreground">
+                      {formatCurrency(preview.remainingTotal)}
+                    </span>
+                  </p>
+                )}
                 {preview.shifted && (
                   <p className="text-amber-400">
                     Compra após o fechamento (dia {preview.closingDay}) — cai na

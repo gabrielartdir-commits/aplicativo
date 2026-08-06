@@ -166,6 +166,40 @@ expectEqual("última parcela: mês", comps[4].month, 3);
 expectEqual("última parcela: ano", comps[4].year, 2027);
 
 // ---------------------------------------------------------------------------
+// COMPRA JÁ EM ANDAMENTO — só as parcelas restantes entram
+// ---------------------------------------------------------------------------
+
+// 1200 em 12x, atualmente na parcela 5: restam 8 de 100, somando 800.
+// O valor da parcela vem do total ORIGINAL — não é 800/8 nem 1200/8.
+const todas = splitInstallments(1200, 12);
+const restantes = todas.slice(5 - 1);
+expectEqual("parcela continua 100 (não 150)", restantes[0], 100);
+expectEqual("restam 8 parcelas", restantes.length, 8);
+expectEqual(
+  "saldo devedor = 800",
+  restantes.reduce((a, b) => a + b, 0),
+  800
+);
+expectEqual(
+  "as 4 anteriores somam 400",
+  todas.slice(0, 4).reduce((a, b) => a + b, 0),
+  400
+);
+
+// Compra em andamento com resíduo: 100 em 3x na parcela 2 restam 33,33 + 33,34.
+const resid = splitInstallments(100, 3).slice(2 - 1);
+expectEqual("resíduo preservado na última", resid[1], 33.34);
+expectEqual(
+  "restante de 100/3 na parcela 2",
+  Math.round(resid.reduce((a, b) => a + b, 0) * 100) / 100,
+  66.67
+);
+
+// Última parcela: resta exatamente uma.
+const ultima = splitInstallments(1200, 12).slice(12 - 1);
+expectEqual("na última parcela resta 1", ultima.length, 1);
+
+// ---------------------------------------------------------------------------
 // FECHAMENTO DO CARTÃO — em qual fatura a compra cai
 // ---------------------------------------------------------------------------
 
