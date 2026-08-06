@@ -83,6 +83,16 @@ export function usePurchaseMutations() {
     onError: (error) => toast.error(error.message),
   });
 
+  const update = useMutation({
+    mutationFn: ({ id, ...input }: CreatePurchaseInput & { id: string }) =>
+      cardService.updatePurchase(id, input, month ?? null),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Compra atualizada.");
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
   const remove = useMutation({
     mutationFn: (id: string) => cardService.removePurchase(id, month ?? null),
     onSuccess: () => {
@@ -92,7 +102,7 @@ export function usePurchaseMutations() {
     onError: (error) => toast.error(error.message),
   });
 
-  return { create, remove };
+  return { create, update, remove };
 }
 
 export function useSubscriptionMutations() {

@@ -1,7 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CalendarRange, CreditCard as CardIcon, Plus, Trash2 } from "lucide-react";
+import {
+  CalendarRange,
+  CreditCard as CardIcon,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -43,6 +49,17 @@ export function InstallmentsView() {
   const { remove } = usePurchaseMutations();
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<PurchaseWithInstallments | null>(null);
+
+  function openNew() {
+    setEditing(null);
+    setDialogOpen(true);
+  }
+
+  function openEdit(purchase: PurchaseWithInstallments) {
+    setEditing(purchase);
+    setDialogOpen(true);
+  }
 
   const list = useMemo(() => purchases ?? [], [purchases]);
 
@@ -103,7 +120,7 @@ export function InstallmentsView() {
         title="Parcelas"
         description="Compras no cartão divididas ao longo dos meses."
       >
-        <Button size="sm" onClick={() => setDialogOpen(true)}>
+        <Button size="sm" onClick={openNew}>
           <Plus />
           Nova compra
         </Button>
@@ -252,6 +269,13 @@ export function InstallmentsView() {
                           </span>
                         )}
                         <button
+                          onClick={() => openEdit(purchase)}
+                          aria-label="Editar compra"
+                          className="text-muted-foreground transition-colors hover:text-foreground"
+                        >
+                          <Pencil className="size-3.5" />
+                        </button>
+                        <button
                           onClick={() => remove.mutate(purchase.id)}
                           aria-label="Remover compra"
                           className="text-muted-foreground transition-colors hover:text-destructive"
@@ -333,6 +357,13 @@ export function InstallmentsView() {
                       {formatCurrency(Number(purchase.total_amount))}
                     </span>
                     <button
+                      onClick={() => openEdit(purchase)}
+                      aria-label="Editar compra"
+                      className="text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      <Pencil className="size-3.5" />
+                    </button>
+                    <button
                       onClick={() => remove.mutate(purchase.id)}
                       aria-label="Remover compra"
                       className="text-muted-foreground transition-colors hover:text-destructive"
@@ -347,7 +378,11 @@ export function InstallmentsView() {
         </section>
       )}
 
-      <PurchaseDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+      <PurchaseDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        purchase={editing}
+      />
     </div>
   );
 }

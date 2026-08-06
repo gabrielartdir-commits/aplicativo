@@ -46,6 +46,42 @@ export interface CreatePurchaseInput {
   purchaseDate: string;
 }
 
+/**
+ * Cria as linhas de parcela de uma compra.
+ *
+ * O valor de cada parcela vem do total ORIGINAL dividido por TODAS as parcelas
+ * — 1200 em 12x na parcela 5 gera parcelas de 100, não de 150. Só as parcelas
+ * de `firstNo` em diante são materializadas; as anteriores saíram de faturas
+ * que o app nunca viu.
+ */
+async function materializeInstallments(
+  purchaseId: string,
+  input: CreatePurchaseInput,
+  firstNo: number,
+  firstCharge: YearMonth
+): Promise<void> {
+  const allAmounts = splitInstallments(
+    input.totalAmount,
+    input.installmentsCount
+  );
+  const remaining = allAmounts.slice(firstNo - 1);
+  const competences = installmentCompetences(
+    firstCharge.year,
+    firstCharge.month,
+    remaining.length
+  );
+
+  await cardInstallmentRepository.createMany(
+    competences.map((c, i) => ({
+      purchase_id: purchaseId,
+      installment_no: firstNo + i,
+      year: c.year,
+      month: c.month,
+      amount: remaining[i],
+    }))
+  );
+}
+
 export const cardService = {
   /**
    * Recalcula a fatura de um cartão numa competência a partir das parcelas e
@@ -176,32 +212,54 @@ export const cardService = {
       first_charge_month: firstCharge.month,
     });
 
-    /*
-     * O valor da parcela vem do total ORIGINAL dividido por TODAS as parcelas
-     * — 1200 em 12x na parcela 5 gera parcelas de 100, não de 150. Só as
-     * parcelas de firstNo em diante são materializadas; as anteriores saíram
-     * de faturas que o app nunca viu.
-     */
-    const allAmounts = splitInstallments(
-      input.totalAmount,
-      input.installmentsCount
-    );
-    const remaining = allAmounts.slice(firstNo - 1);
-    const competences = installmentCompetences(
-      firstCharge.year,
-      firstCharge.month,
-      remaining.length
-    );
+    await materializeInstallments(purchase.id, input, firstNo, firstCharge);
 
-    await cardInstallmentRepository.createMany(
-      competences.map((c, i) => ({
-        purchase_id: purchase.id,
-        installment_no: firstNo + i,
-        year: c.year,
-        month: c.month,
-        amount: remaining[i],
-      }))
+    if (month) await this.refresh(month);
+  },
+
+  /**
+   * Edita a compra e regenera as parcelas do zero.
+   *
+   * Recriar é mais seguro que remendar: mudar valor, número de parcelas ou
+   * parcela atual reescreve toda a distribuição, e um merge incremental
+   * deixaria parcelas órfãs com valores da versão anterior.
+   */
+  async updatePurchase(
+    purchaseId: string,
+    input: CreatePurchaseInput,
+    month: Month | null
+  ): Promise<void> {
+    const card = (await creditCardRepository.list()).find(
+      (c) => c.id === input.cardId
     );
+    if (!card) throw new Error("Cartão não encontrado.");
+
+    const firstNo = Math.max(1, input.currentInstallment ?? 1);
+    if (firstNo > input.installmentsCount) {
+      throw new Error(
+        "A parcela atual não pode ser maior que o total de parcelas."
+      );
+    }
+
+    const firstCharge =
+      firstNo > 1 && month
+        ? { year: month.year, month: month.month }
+        : competenceForPurchase(input.purchaseDate, card.closing_day);
+
+    await cardPurchaseRepository.update(purchaseId, {
+      card_id: input.cardId,
+      category_id: input.categoryId ?? null,
+      description: input.description,
+      total_amount: input.totalAmount,
+      installments_count: input.installmentsCount,
+      first_installment_no: firstNo,
+      purchase_date: input.purchaseDate,
+      first_charge_year: firstCharge.year,
+      first_charge_month: firstCharge.month,
+    });
+
+    await cardInstallmentRepository.removeByPurchase(purchaseId);
+    await materializeInstallments(purchaseId, input, firstNo, firstCharge);
 
     if (month) await this.refresh(month);
   },

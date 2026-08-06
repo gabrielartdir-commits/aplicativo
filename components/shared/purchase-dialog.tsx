@@ -32,6 +32,7 @@ import {
   splitInstallments,
 } from "@/lib/finance";
 import { useCurrentMonth } from "@/hooks/use-current-month";
+import type { PurchaseWithInstallments } from "@/types/domain";
 import {
   competenceForPurchase,
   shortCompetenceLabel,
@@ -69,10 +70,16 @@ type OutputValues = z.output<typeof schema>;
 interface PurchaseDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Preenchido para edição; null para criação. */
+  purchase?: PurchaseWithInstallments | null;
 }
 
-export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
-  const { create } = usePurchaseMutations();
+export function PurchaseDialog({
+  open,
+  onOpenChange,
+  purchase = null,
+}: PurchaseDialogProps) {
+  const { create, update } = usePurchaseMutations();
   const { data: cards } = useCreditCards();
   const { data: categories } = useCategories();
   const { data: month } = useCurrentMonth();
@@ -113,9 +120,34 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
   });
 
   useEffect(() => {
-    if (open) form.reset(empty);
+    if (!open) return;
+
+    if (!purchase) {
+      form.reset(empty);
+      return;
+    }
+
+    /*
+     * "Parcela atual" na edição é a que cai na competência corrente. Sem
+     * parcela neste mês (compra futura ou já quitada), volta para a primeira
+     * materializada.
+     */
+    const current =
+      purchase.installments.find(
+        (i) => i.year === month?.year && i.month === month?.month
+      )?.installment_no ?? purchase.first_installment_no;
+
+    form.reset({
+      card_id: purchase.card_id,
+      category_id: purchase.category_id,
+      description: purchase.description,
+      total_amount: String(purchase.total_amount),
+      installments_count: purchase.installments_count,
+      current_installment: current,
+      purchase_date: purchase.purchase_date,
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, form]);
+  }, [open, purchase, month, form]);
 
   const watchedTotal = form.watch("total_amount");
   const watchedCount = form.watch("installments_count");
@@ -178,7 +210,7 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
   ]);
 
   async function onSubmit(values: OutputValues) {
-    await create.mutateAsync({
+    const payload = {
       cardId: values.card_id,
       categoryId: values.category_id,
       description: values.description,
@@ -186,7 +218,13 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
       installmentsCount: values.installments_count,
       currentInstallment: values.current_installment,
       purchaseDate: values.purchase_date,
-    });
+    };
+
+    if (purchase) {
+      await update.mutateAsync({ id: purchase.id, ...payload });
+    } else {
+      await create.mutateAsync(payload);
+    }
     onOpenChange(false);
   }
 
@@ -196,9 +234,13 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md rounded-[24px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Nova compra no cartão</DialogTitle>
+          <DialogTitle>
+            {purchase ? "Editar compra" : "Nova compra no cartão"}
+          </DialogTitle>
           <DialogDescription>
-            Só a parcela do mês entra no seu disponível. As demais aparecem no calendário.
+            {purchase
+              ? "As parcelas são recalculadas do zero a partir dos valores abaixo."
+              : "Só a parcela do mês entra no seu disponível. As demais aparecem no calendário."}
           </DialogDescription>
         </DialogHeader>
 
@@ -389,7 +431,10 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
               >
                 Cancelar
               </Button>
-              <Button type="submit" disabled={create.isPending}>
+              <Button
+                type="submit"
+                disabled={create.isPending || update.isPending}
+              >
                 Salvar
               </Button>
             </DialogFooter>
