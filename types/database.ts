@@ -468,7 +468,9 @@ export type Database = {
           month: number;
           installments_total: number;
           subscriptions_total: number;
-          /** Coluna gerada: installments_total + subscriptions_total. */
+          /** Total lido do extrato. Quando presente, substitui a soma calculada. */
+          declared_total: number | null;
+          /** Coluna gerada: declared_total ?? (parcelas + assinaturas). */
           total: number;
           due_date: string;
           paid: boolean;
@@ -482,6 +484,7 @@ export type Database = {
           month: number;
           installments_total?: number;
           subscriptions_total?: number;
+          declared_total?: number | null;
           due_date: string;
           paid?: boolean;
           paid_at?: string | null;
@@ -494,6 +497,7 @@ export type Database = {
           month?: number;
           installments_total?: number;
           subscriptions_total?: number;
+          declared_total?: number | null;
           due_date?: string;
           paid?: boolean;
           paid_at?: string | null;

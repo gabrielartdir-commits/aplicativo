@@ -26,6 +26,7 @@ import { monthLabel } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatDate } from "@/utils/format";
 import type { CreditCard } from "@/types/domain";
+import { DeclaredTotalField } from "./declared-total-field";
 
 export function InvoicesView() {
   const { data: month } = useCurrentMonth();
@@ -180,6 +181,8 @@ export function InvoicesView() {
                       </span>
                     </div>
                   </div>
+
+                  <DeclaredTotalField invoice={invoice} />
 
                   <label className="flex items-center gap-2 pt-0.5 text-xs">
                     <Checkbox

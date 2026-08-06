@@ -91,6 +91,9 @@ export const cardService = {
       month: competence.month,
       installments_total: installmentsTotal,
       subscriptions_total: subscriptionsTotal,
+      // Valor lido do extrato é entrada do usuário: recalcular a fatura
+      // atualiza as partes conhecidas, nunca apaga o total informado.
+      declared_total: existing?.declared_total ?? null,
       due_date: invoiceDueDate(competence, card.closing_day, card.due_day),
       paid: false,
       paid_at: null,
@@ -190,6 +193,15 @@ export const cardService = {
     if (month) await this.refresh(month);
   },
 
+  /** Criar o cartão já abre a fatura da competência, mesmo sem lançamentos. */
+  async createCard(
+    input: Database["public"]["Tables"]["credit_cards"]["Insert"],
+    month: Month | null
+  ): Promise<void> {
+    await creditCardRepository.create(input);
+    if (month) await this.refresh(month);
+  },
+
   /** Alterar fechamento ou vencimento muda a data das faturas em aberto. */
   async updateCard(
     id: string,
@@ -229,6 +241,24 @@ export const cardService = {
   async removeSubscription(id: string, month: Month | null): Promise<void> {
     await subscriptionRepository.remove(id);
     if (month) await this.refresh(month);
+  },
+
+  /**
+   * Informa o total real da fatura, lido do extrato.
+   *
+   * O valor substitui a soma calculada — parcelas e assinaturas já estão
+   * dentro dele. Passar `null` devolve a fatura ao valor calculado pelo app.
+   * A reserva do mês é realinhada, já que o total mudou.
+   */
+  async setInvoiceDeclaredTotal(
+    invoiceId: string,
+    declaredTotal: number | null,
+    month: Month
+  ): Promise<void> {
+    await cardInvoiceRepository.update(invoiceId, {
+      declared_total: declaredTotal === null ? null : round2(declaredTotal),
+    });
+    await this.syncMonthReservedInvoices(month);
   },
 
   /**

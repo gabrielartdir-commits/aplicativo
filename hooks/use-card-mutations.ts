@@ -4,7 +4,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/query-keys";
 import { cardService, type CreatePurchaseInput } from "@/services/card-service";
-import { creditCardRepository } from "@/services/repositories/credit-card-repository";
 import { useCurrentMonth } from "./use-current-month";
 import type { Database } from "@/types/database";
 import type { CardInvoice } from "@/types/domain";
@@ -42,7 +41,8 @@ export function useCreditCardMutations() {
   const { data: month } = useCurrentMonth();
 
   const create = useMutation({
-    mutationFn: (input: CreditCardInsert) => creditCardRepository.create(input),
+    mutationFn: (input: CreditCardInsert) =>
+      cardService.createCard(input, month ?? null),
     onSuccess: () => {
       invalidate();
       toast.success("Cartão adicionado.");
@@ -142,5 +142,27 @@ export function useInvoiceMutations() {
     onError: (error) => toast.error(error.message),
   });
 
-  return { setPaid };
+  const setDeclaredTotal = useMutation({
+    mutationFn: ({
+      invoiceId,
+      declaredTotal,
+    }: {
+      invoiceId: string;
+      declaredTotal: number | null;
+    }) => {
+      if (!month) throw new Error("Nenhum mês aberto.");
+      return cardService.setInvoiceDeclaredTotal(
+        invoiceId,
+        declaredTotal,
+        month
+      );
+    },
+    onSuccess: () => {
+      invalidate();
+      toast.success("Valor da fatura atualizado.");
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  return { setPaid, setDeclaredTotal };
 }
