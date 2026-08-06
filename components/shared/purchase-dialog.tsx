@@ -32,6 +32,7 @@ import {
   splitInstallments,
 } from "@/lib/finance";
 import { useCurrentMonth } from "@/hooks/use-current-month";
+import { cn } from "@/lib/utils";
 import type { PurchaseWithInstallments } from "@/types/domain";
 import {
   competenceForPurchase,
@@ -43,7 +44,9 @@ const schema = z.object({
   card_id: z.string().min(1, "Escolha o cartão"),
   category_id: z.string().nullable(),
   description: z.string().min(1, "Descreva a compra"),
-  total_amount: z
+  /** Como interpretar o campo de valor: total da compra ou valor da parcela. */
+  amount_mode: z.enum(["total", "installment"]),
+  amount: z
     .string({ message: "Informe um valor" })
     .transform(parseCurrencyInput)
     .pipe(z.number().positive("O valor deve ser maior que zero")),
@@ -63,6 +66,21 @@ const schema = z.object({
     message: "Não pode ser maior que o total de parcelas",
     path: ["current_installment"],
   });
+
+/**
+ * Total da compra a partir do modo de entrada.
+ *
+ * Informando o valor da parcela, o total é o produto pelo número de parcelas —
+ * é o caminho natural quando a loja anuncia "12x de R$ 99,90" e o total nunca
+ * aparece.
+ */
+function resolveTotal(
+  mode: "total" | "installment",
+  amount: number,
+  count: number
+): number {
+  return round2(mode === "total" ? amount : amount * count);
+}
 
 type FormValues = z.input<typeof schema>;
 type OutputValues = z.output<typeof schema>;
@@ -108,7 +126,8 @@ export function PurchaseDialog({
     card_id: "",
     category_id: null,
     description: "",
-    total_amount: "",
+    amount_mode: "total" as const,
+    amount: "",
     installments_count: 1,
     current_installment: 1,
     purchase_date: toISODate(),
@@ -141,7 +160,8 @@ export function PurchaseDialog({
       card_id: purchase.card_id,
       category_id: purchase.category_id,
       description: purchase.description,
-      total_amount: String(purchase.total_amount),
+      amount_mode: "total",
+      amount: String(purchase.total_amount),
       installments_count: purchase.installments_count,
       current_installment: current,
       purchase_date: purchase.purchase_date,
@@ -149,7 +169,8 @@ export function PurchaseDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, purchase, month, form]);
 
-  const watchedTotal = form.watch("total_amount");
+  const watchedAmount = form.watch("amount");
+  const watchedMode = form.watch("amount_mode");
   const watchedCount = form.watch("installments_count");
   const watchedCurrent = form.watch("current_installment");
   const watchedDate = form.watch("purchase_date");
@@ -160,11 +181,13 @@ export function PurchaseDialog({
    * comprar depois do fechamento joga tudo para a fatura seguinte.
    */
   const preview = useMemo(() => {
-    const total = parseCurrencyInput(String(watchedTotal ?? ""));
+    const typed = parseCurrencyInput(String(watchedAmount ?? ""));
     const count = Number(watchedCount);
     const currentNo = Number(watchedCurrent);
-    if (!total || total <= 0 || !count || count < 1 || count > 120) return null;
+    if (!typed || typed <= 0 || !count || count < 1 || count > 120) return null;
     if (!currentNo || currentNo < 1 || currentNo > count) return null;
+
+    const total = resolveTotal(watchedMode, typed, count);
 
     const card = activeCards.find((c) => c.id === watchedCard);
     if (!card || !watchedDate) return null;
@@ -190,6 +213,7 @@ export function PurchaseDialog({
       last: remaining[remaining.length - 1],
       uneven: remaining[0] !== remaining[remaining.length - 1],
       count,
+      total,
       remainingCount: remaining.length,
       remainingTotal: round2(remaining.reduce((a, b) => a + b, 0)),
       startsAt: shortCompetenceLabel(competences[0]),
@@ -200,7 +224,8 @@ export function PurchaseDialog({
       closingDay: card.closing_day,
     };
   }, [
-    watchedTotal,
+    watchedAmount,
+    watchedMode,
     watchedCount,
     watchedCurrent,
     watchedDate,
@@ -214,7 +239,11 @@ export function PurchaseDialog({
       cardId: values.card_id,
       categoryId: values.category_id,
       description: values.description,
-      totalAmount: values.total_amount,
+      totalAmount: resolveTotal(
+        values.amount_mode,
+        values.amount,
+        values.installments_count
+      ),
       installmentsCount: values.installments_count,
       currentInstallment: values.current_installment,
       purchaseDate: values.purchase_date,
@@ -293,19 +322,45 @@ export function PurchaseDialog({
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="pu-total">Valor total</Label>
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="pu-amount">
+                    {watchedMode === "total" ? "Valor total" : "Valor da parcela"}
+                  </Label>
+                  <div className="flex rounded-full border border-border/40 p-0.5">
+                    {(
+                      [
+                        { value: "total", label: "Total" },
+                        { value: "installment", label: "Parcela" },
+                      ] as const
+                    ).map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => form.setValue("amount_mode", opt.value)}
+                        className={cn(
+                          "rounded-full px-2 py-0.5 text-[10px] font-bold transition-all",
+                          watchedMode === opt.value
+                            ? "bg-primary/15 text-primary"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <Input
-                  id="pu-total"
+                  id="pu-amount"
                   type="text"
                   inputMode="decimal"
                   placeholder="0,00"
-                  {...form.register("total_amount")}
+                  {...form.register("amount")}
                 />
-                {errors.total_amount && (
+                {errors.amount && (
                   <p className="text-sm text-destructive">
-                    {errors.total_amount.message}
+                    {errors.amount.message}
                   </p>
                 )}
               </div>
@@ -393,6 +448,12 @@ export function PurchaseDialog({
                       (última de {formatCurrency(preview.last)})
                     </span>
                   )}
+                </p>
+                <p className="text-muted-foreground">
+                  {watchedMode === "installment" ? "Total da compra" : "Total"}:{" "}
+                  <span className="font-semibold text-foreground">
+                    {formatCurrency(preview.total)}
+                  </span>
                 </p>
                 <p className="text-muted-foreground">
                   De {preview.startsAt} até{" "}
