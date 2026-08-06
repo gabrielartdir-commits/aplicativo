@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CalendarClock,
   CreditCard as CardIcon,
@@ -20,6 +20,7 @@ import { useCurrentMonth } from "@/hooks/use-current-month";
 import { useCreditCards, useInvoices } from "@/hooks/use-cards";
 import {
   useCreditCardMutations,
+  useEnsureInvoices,
   useInvoiceMutations,
 } from "@/hooks/use-card-mutations";
 import { monthLabel } from "@/lib/dates";
@@ -39,6 +40,23 @@ export function InvoicesView() {
   const [editingCard, setEditingCard] = useState<CreditCard | null>(null);
 
   const list = useMemo(() => invoices ?? [], [invoices]);
+
+  /**
+   * Cartão ativo sem fatura na competência não tem onde receber o valor do
+   * extrato. Abre as que faltam, uma vez por carga.
+   */
+  const ensureInvoices = useEnsureInvoices();
+  const missing = useMemo(() => {
+    if (!month || !cards || !invoices) return 0;
+    const withInvoice = new Set(invoices.map((i) => i.card_id));
+    return cards.filter((c) => c.active && !withInvoice.has(c.id)).length;
+  }, [month, cards, invoices]);
+
+  useEffect(() => {
+    if (missing > 0 && ensureInvoices.isIdle) {
+      ensureInvoices.mutate();
+    }
+  }, [missing, ensureInvoices]);
 
   const openTotal = list
     .filter((i) => !i.paid)

@@ -129,6 +129,26 @@ export function useSubscriptionMutations() {
   return { create, update, remove };
 }
 
+/**
+ * Abre as faturas que faltam na competência.
+ *
+ * Um cartão só ganhava fatura depois de algum lançamento, então cartões sem
+ * nada lançado ficavam sem onde informar o valor do extrato.
+ */
+export function useEnsureInvoices() {
+  const invalidate = useInvalidateCards();
+  const { data: month } = useCurrentMonth();
+
+  return useMutation({
+    mutationFn: () => {
+      if (!month) throw new Error("Nenhum mês aberto.");
+      return cardService.refresh(month);
+    },
+    onSuccess: invalidate,
+    onError: (error) => toast.error(error.message),
+  });
+}
+
 export function useInvoiceMutations() {
   const invalidate = useInvalidateCards();
   const { data: month } = useCurrentMonth();
