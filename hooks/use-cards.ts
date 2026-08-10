@@ -54,3 +54,11 @@ export function useInvoices(year?: number, month?: number) {
     enabled: Boolean(year && month),
   });
 }
+
+/** Histórico completo de faturas — base dos gráficos de progressão. */
+export function useInvoiceHistory() {
+  return useQuery({
+    queryKey: queryKeys.invoiceHistory,
+    queryFn: () => cardInvoiceRepository.listAll(),
+  });
+}

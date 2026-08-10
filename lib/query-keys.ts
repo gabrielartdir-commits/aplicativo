@@ -18,4 +18,6 @@ export const queryKeys = {
     ["installments", "upcoming", year, month] as const,
   subscriptions: ["subscriptions"] as const,
   invoices: (year: number, month: number) => ["invoices", year, month] as const,
+  invoiceHistory: ["invoices", "history"] as const,
+  variableAverage: ["variable-average"] as const,
 };

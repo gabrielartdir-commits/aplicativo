@@ -5,7 +5,6 @@ import { Pencil, Plus, Repeat, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { SubscriptionDialog } from "@/components/shared/subscription-dialog";
 import { useSubscriptions } from "@/hooks/use-cards";
@@ -14,7 +13,8 @@ import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils/format";
 import type { SubscriptionWithCard } from "@/types/domain";
 
-export function SubscriptionsView() {
+/** Assinaturas recorrentes, dentro do hub de Gastos Fixos. */
+export function SubscriptionsPanel() {
   const { data: subscriptions } = useSubscriptions();
   const { remove } = useSubscriptionMutations();
 
@@ -45,16 +45,16 @@ export function SubscriptionsView() {
   }
 
   return (
-    <div className="space-y-6 md:space-y-8">
-      <PageHeader
-        title="Assinaturas"
-        description="Cobranças que se repetem todo mês, no crédito ou no débito."
-      >
+    <div className="space-y-5">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">
+          Cobranças que se repetem todo mês, no crédito ou no débito.
+        </p>
         <Button size="sm" onClick={openNew}>
           <Plus />
           Nova assinatura
         </Button>
-      </PageHeader>
+      </div>
 
       {/* Resumo */}
       <div className="grid grid-cols-3 gap-2 md:gap-4">
@@ -87,7 +87,7 @@ export function SubscriptionsView() {
             <p className="text-base md:text-xl font-bold tabular-nums text-primary">
               {formatCurrency(debitTotal)}
             </p>
-            <p className="text-[9px] text-muted-foreground">Reserva do saldo</p>
+            <p className="text-[9px] text-muted-foreground">Fora de fatura</p>
           </CardContent>
         </Card>
       </div>

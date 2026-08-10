@@ -34,6 +34,24 @@ export const transactionRepository = {
     return (data ?? []) as TransactionWithCategory[];
   },
 
+  /**
+   * Gastos variáveis por mês, para a média usada nas projeções.
+   * Só `expense`: receitas, ajustes e aportes não são consumo do dia a dia.
+   */
+  async variableSpendByMonth(): Promise<{ month_id: string; total: number }[]> {
+    const { data, error } = await createClient()
+      .from("transactions")
+      .select("month_id, amount")
+      .eq("type", "expense");
+    if (error) throw new Error(error.message);
+
+    const map = new Map<string, number>();
+    for (const row of data ?? []) {
+      map.set(row.month_id, (map.get(row.month_id) ?? 0) + Number(row.amount));
+    }
+    return [...map.entries()].map(([month_id, total]) => ({ month_id, total }));
+  },
+
   async create(input: TransactionInsert): Promise<Transaction> {
     const { data, error } = await createClient()
       .from("transactions")

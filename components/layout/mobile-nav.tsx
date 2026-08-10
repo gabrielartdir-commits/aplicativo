@@ -6,7 +6,6 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Wallet,
-  Tags,
   Plus,
   Sparkles,
   Menu,
@@ -14,13 +13,12 @@ import {
   Repeat,
   TrendingUp,
   Lightbulb,
+  LineChart,
   Settings,
   X,
   PlusCircle,
   PiggyBank,
   CalendarRange,
-  RefreshCw,
-  CreditCard as CreditCardIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCurrentMonth } from "@/hooks/use-current-month";
@@ -49,15 +47,14 @@ export function MobileNav() {
   // Main tabs: Hoje, Categorias, (+), Histórico, Mais
   const activeTabs = [
     { label: "Hoje", href: "/", icon: Wallet },
-    { label: "Categorias", href: "/categorias", icon: Tags },
+    { label: "Fixos", href: "/gastos-fixos", icon: Repeat },
   ];
 
   const extraItems = [
-    { label: "Gastos Fixos", href: "/gastos-fixos", icon: Repeat },
     { label: "Parcelas", href: "/parcelas", icon: CalendarRange },
-    { label: "Assinaturas", href: "/assinaturas", icon: RefreshCw },
-    { label: "Faturas", href: "/faturas", icon: CreditCardIcon },
+    { label: "Progressão", href: "/progressao", icon: LineChart },
     { label: "Investimentos", href: "/investimentos", icon: TrendingUp },
+    { label: "Simulações", href: "/simulacoes", icon: Sparkles },
     { label: "Insights", href: "/insights", icon: Lightbulb },
     { label: "Configurações", href: "/configuracoes", icon: Settings },
   ];

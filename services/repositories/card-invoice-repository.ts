@@ -23,6 +23,17 @@ export const cardInvoiceRepository = {
     return (data ?? []) as unknown as InvoiceWithCard[];
   },
 
+  /** Histórico completo de faturas — base dos gráficos de progressão. */
+  async listAll(): Promise<InvoiceWithCard[]> {
+    const { data, error } = await createClient()
+      .from("card_invoices")
+      .select(WITH_CARD)
+      .order("year")
+      .order("month");
+    if (error) throw new Error(error.message);
+    return (data ?? []) as unknown as InvoiceWithCard[];
+  },
+
   async findByCardAndCompetence(
     cardId: string,
     year: number,

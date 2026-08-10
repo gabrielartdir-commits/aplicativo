@@ -27,6 +27,33 @@ export const monthRepository = {
     return data;
   },
 
+  /** Mês aberto mais recente — o app trabalha sempre sobre ele. */
+  async findLatestOpen(): Promise<Month | null> {
+    const { data, error } = await createClient()
+      .from("months")
+      .select("*")
+      .eq("closed", false)
+      .order("year", { ascending: false })
+      .order("month", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data;
+  },
+
+  /** Mês fechado mais recente — base para sugerir a abertura do próximo. */
+  async findLatest(): Promise<Month | null> {
+    const { data, error } = await createClient()
+      .from("months")
+      .select("*")
+      .order("year", { ascending: false })
+      .order("month", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data;
+  },
+
   async findLatestBefore(year: number, month: number): Promise<Month | null> {
     const { data, error } = await createClient()
       .from("months")

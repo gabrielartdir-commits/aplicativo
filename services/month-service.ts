@@ -1,6 +1,7 @@
 import { computeMonthOpening, applyInvestmentGoalChange } from "@/lib/finance";
-import { currentYearMonth, type YearMonth } from "@/lib/dates";
+import { currentYearMonth, nextYearMonth, type YearMonth } from "@/lib/dates";
 import type { Month } from "@/types/domain";
+import { cardService } from "./card-service";
 import { budgetRepository } from "./repositories/budget-repository";
 import { categoryRepository } from "./repositories/category-repository";
 import { fixedExpenseRepository } from "./repositories/fixed-expense-repository";
@@ -14,9 +15,15 @@ export interface OpenMonthInput {
 }
 
 export const monthService = {
-  /** Mês financeiro corrente (null quando ainda não foi aberto). */
-  async getCurrentMonth(now: YearMonth = currentYearMonth()): Promise<Month | null> {
-    return monthRepository.findByYearMonth(now.year, now.month);
+  /**
+   * Mês financeiro corrente: o mês aberto mais recente.
+   *
+   * Não é o mês do calendário. Ao virar o mês manualmente, o app passa a
+   * trabalhar sobre a nova competência mesmo que o calendário ainda não
+   * tenha chegado lá — e um mês do calendário já fechado não reabre sozinho.
+   */
+  async getCurrentMonth(): Promise<Month | null> {
+    return monthRepository.findLatestOpen();
   },
 
   /** Saldo bancário final do mês anterior — sugestão para a abertura. */
@@ -72,6 +79,44 @@ export const monthService = {
     );
 
     return month;
+  },
+
+  /**
+   * Fecha o mês corrente e abre o seguinte.
+   *
+   * O mês fechado vira histórico: as faturas, parcelas e lançamentos dele
+   * continuam consultáveis, mas os serviços recusam alterações. O saldo
+   * bancário final entra como saldo inicial do novo mês, e o salário se
+   * repete por ser recorrente — extras começam zerados, por serem eventuais.
+   *
+   * As faturas da nova competência nascem junto, com as parcelas que caem
+   * nela e as assinaturas ativas.
+   */
+  async advanceMonth(input?: Partial<OpenMonthInput>): Promise<Month> {
+    const current = await this.getCurrentMonth();
+    if (!current) throw new Error("Nenhum mês aberto para fechar.");
+
+    const next = nextYearMonth({ year: current.year, month: current.month });
+    const existing = await monthRepository.findByYearMonth(next.year, next.month);
+    if (existing) {
+      throw new Error(
+        `O mês ${next.month}/${next.year} já existe. Feche-o antes de avançar.`
+      );
+    }
+
+    await monthRepository.update(current.id, { closed: true });
+
+    const opened = await this.openMonth(
+      {
+        startingBalance: input?.startingBalance ?? Number(current.bank_balance),
+        salary: input?.salary ?? Number(current.salary),
+        extraIncome: input?.extraIncome ?? 0,
+      },
+      next
+    );
+
+    // Traz para a nova competência as parcelas e assinaturas que caem nela.
+    return cardService.refresh(opened);
   },
 
   /** Atualiza o valor reservado para investimento e o disponível do mês atual caso a meta mude. */

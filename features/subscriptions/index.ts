@@ -1,1 +1,1 @@
-export { SubscriptionsView } from "./components/subscriptions-view";
+export { SubscriptionsPanel } from "./components/subscriptions-view";
