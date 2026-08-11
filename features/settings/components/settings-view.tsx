@@ -8,6 +8,7 @@ import {
   PiggyBank,
   Vault as VaultIcon,
   RefreshCw,
+  Calculator,
   Lock,
   Download,
   Upload,
@@ -32,9 +33,8 @@ import { queryKeys } from "@/lib/query-keys";
 import { clearVaultSession } from "@/lib/vault-session";
 import { vaultRepository } from "@/services/repositories/vault-repository";
 import { monthService } from "@/services/month-service";
-import { formatDate, parseCurrencyInput } from "@/utils/format";
+import { formatCurrency, formatDate, parseCurrencyInput } from "@/utils/format";
 import { createClient } from "@/lib/supabase/client";
-import { round2, computeAvailable } from "@/lib/finance";
 
 export function SettingsView() {
   const queryClient = useQueryClient();
@@ -96,47 +96,28 @@ export function SettingsView() {
     toast.success("Importação concluída com sucesso (simulada).");
   };
 
+  /**
+   * Reconstrói saldo e reservas a partir dos registros, sem apagar nada.
+   * Conserta um mês que saiu de sincronia por erro em alguma operação.
+   */
+  const recalculate = useMutation({
+    mutationFn: async () => {
+      if (!currentMonth) throw new Error("Mês atual não encontrado.");
+      return monthService.recalculate(currentMonth);
+    },
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries();
+      toast.success(
+        `Saldos recalculados. Disponível: ${formatCurrency(Number(updated.available_balance))}`
+      );
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
   const resetMonth = useMutation({
     mutationFn: async () => {
       if (!currentMonth) throw new Error("Mês atual não encontrado.");
-      const supabase = createClient();
-      
-      const { error: txError } = await supabase
-        .from("transactions")
-        .delete()
-        .eq("month_id", currentMonth.id);
-      if (txError) throw new Error(txError.message);
-
-      const { error: payError } = await supabase
-        .from("fixed_expense_payments")
-        .delete()
-        .eq("month_id", currentMonth.id);
-      if (payError) throw new Error(payError.message);
-
-      const { error: budgetError } = await supabase
-        .from("monthly_category_budgets")
-        .update({ spent: 0 })
-        .eq("month_id", currentMonth.id);
-      if (budgetError) throw new Error(budgetError.message);
-
-      const bank_balance = round2(
-        currentMonth.starting_balance + currentMonth.salary + currentMonth.extra_income
-      );
-      const available_balance = computeAvailable(
-        bank_balance,
-        currentMonth.reserved_fixed_expenses,
-        currentMonth.reserved_investment,
-        currentMonth.reserved_invoices
-      );
-
-      const { error: monthError } = await supabase
-        .from("months")
-        .update({
-          bank_balance,
-          available_balance,
-        })
-        .eq("id", currentMonth.id);
-      if (monthError) throw new Error(monthError.message);
+      await monthService.resetMonth(currentMonth);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: currentMonth?.id ? queryKeys.transactions(currentMonth.id) : [] });
@@ -297,10 +278,19 @@ export function SettingsView() {
           </CardHeader>
           <CardContent className="flex gap-2 flex-wrap">
             <Button
+              variant="outline"
+              size="sm"
+              onClick={() => recalculate.mutate()}
+              disabled={recalculate.isPending}
+            >
+              <Calculator className="size-4 mr-2" />
+              {recalculate.isPending ? "Recalculando…" : "Recalcular saldos"}
+            </Button>
+            <Button
               variant="destructive"
               size="sm"
               onClick={() => {
-                if (window.confirm("ATENÇÃO: Deseja realmente resetar este mês? Isso apagará todas as transações, pagamentos e redefinirá os gastos de categorias para zero.")) {
+                if (window.confirm("ATENÇÃO: Deseja realmente resetar este mês? Isso apagará transações, pagamentos e aportes, desmarcará as faturas e zerará os gastos das categorias.")) {
                   resetMonth.mutate();
                 }
               }}

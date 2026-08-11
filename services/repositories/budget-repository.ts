@@ -55,4 +55,13 @@ export const budgetRepository = {
       .eq("id", id);
     if (error) throw new Error(error.message);
   },
+
+  /** Zera o gasto de todas as categorias do mês — usado no reset. */
+  async resetSpentByMonth(monthId: string): Promise<void> {
+    const { error } = await createClient()
+      .from("monthly_category_budgets")
+      .update({ spent: 0 })
+      .eq("month_id", monthId);
+    if (error) throw new Error(error.message);
+  },
 };

@@ -93,5 +93,14 @@ export const transactionRepository = {
       .eq("id", id);
     if (error) throw new Error(error.message);
   },
+
+  /** Apaga todos os lançamentos do mês — usado no reset. */
+  async removeByMonth(monthId: string): Promise<void> {
+    const { error } = await createClient()
+      .from("transactions")
+      .delete()
+      .eq("month_id", monthId);
+    if (error) throw new Error(error.message);
+  },
 };
 

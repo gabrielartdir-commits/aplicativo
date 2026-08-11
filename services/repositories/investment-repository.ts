@@ -46,4 +46,13 @@ export const investmentRepository = {
       .eq("description", description);
     if (error) throw new Error(error.message);
   },
+
+  /** Apaga todos os aportes do mês — usado no reset. */
+  async removeByMonth(monthId: string): Promise<void> {
+    const { error } = await createClient()
+      .from("investments")
+      .delete()
+      .eq("month_id", monthId);
+    if (error) throw new Error(error.message);
+  },
 };

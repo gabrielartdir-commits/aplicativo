@@ -33,4 +33,13 @@ export const paymentRepository = {
       .eq("fixed_expense_id", fixedExpenseId);
     if (error) throw new Error(error.message);
   },
+
+  /** Apaga todos os pagamentos de gastos fixos do mês — usado no reset. */
+  async removeByMonth(monthId: string): Promise<void> {
+    const { error } = await createClient()
+      .from("fixed_expense_payments")
+      .delete()
+      .eq("month_id", monthId);
+    if (error) throw new Error(error.message);
+  },
 };

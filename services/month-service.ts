@@ -1,12 +1,23 @@
-import { computeMonthOpening, applyInvestmentGoalChange } from "@/lib/finance";
+import {
+  adjustmentDelta,
+  applyInvestmentGoalChange,
+  computeAvailable,
+  computeMonthOpening,
+  round2,
+} from "@/lib/finance";
 import { currentYearMonth, nextYearMonth, type YearMonth } from "@/lib/dates";
 import type { Month } from "@/types/domain";
 import { cardService } from "./card-service";
+import { adjustmentRepository } from "./repositories/adjustment-repository";
 import { budgetRepository } from "./repositories/budget-repository";
+import { cardInvoiceRepository } from "./repositories/card-invoice-repository";
 import { categoryRepository } from "./repositories/category-repository";
 import { fixedExpenseRepository } from "./repositories/fixed-expense-repository";
+import { investmentRepository } from "./repositories/investment-repository";
 import { monthRepository } from "./repositories/month-repository";
+import { paymentRepository } from "./repositories/payment-repository";
 import { recurringIncomeRepository } from "./repositories/recurring-income-repository";
+import { transactionRepository } from "./repositories/transaction-repository";
 import { vaultRepository } from "./repositories/vault-repository";
 
 export interface OpenMonthInput {
@@ -120,6 +131,122 @@ export const monthService = {
 
     // Traz para a nova competência as parcelas e assinaturas que caem nela.
     return cardService.refresh(opened);
+  },
+
+  /**
+   * Reconstrói saldo e reservas do mês a partir dos registros.
+   *
+   * Serve para consertar um mês que saiu de sincronia — cada operação
+   * atualiza os saldos de forma incremental, então um erro no meio do caminho
+   * fica congelado no total. Aqui nada é incremental: tudo é somado de novo a
+   * partir do que está gravado.
+   */
+  async recalculate(month: Month): Promise<Month> {
+    const [
+      activeFixed,
+      payments,
+      invoices,
+      transactions,
+      adjustments,
+      investments,
+      vault,
+    ] = await Promise.all([
+      fixedExpenseRepository.listActive(),
+      paymentRepository.listByMonth(month.id),
+      cardInvoiceRepository.listByCompetence(month.year, month.month),
+      transactionRepository.listByMonth(month.id),
+      adjustmentRepository.listByMonth(month.id),
+      investmentRepository.listByMonth(month.id),
+      vaultRepository.find(),
+    ]);
+
+    /*
+     * Saldo bancário: tudo que entrou menos tudo que saiu. Aportes não entram
+     * — eles consomem a reserva de investimento, não o banco.
+     */
+    let bank =
+      Number(month.starting_balance) +
+      Number(month.salary) +
+      Number(month.extra_income);
+
+    bank -= payments.reduce((s, p) => s + Number(p.amount), 0);
+    bank -= invoices
+      .filter((i) => i.paid)
+      .reduce((s, i) => s + Number(i.total), 0);
+
+    for (const tx of transactions) {
+      if (tx.type === "expense") bank -= Number(tx.amount);
+      else if (tx.type === "income") bank += Number(tx.amount);
+    }
+    for (const adj of adjustments) {
+      bank += adjustmentDelta(adj.type, Number(adj.amount));
+    }
+    bank = round2(bank);
+
+    // Reservas: o que ainda não foi pago.
+    const paidIds = new Set(payments.map((p) => p.fixed_expense_id));
+    const reservedFixed = round2(
+      activeFixed
+        .filter((f) => !paidIds.has(f.id))
+        .reduce((s, f) => s + Number(f.amount), 0)
+    );
+    const reservedInvoices = round2(
+      invoices.filter((i) => !i.paid).reduce((s, i) => s + Number(i.total), 0)
+    );
+    const investedTotal = investments.reduce(
+      (s, i) => s + Number(i.amount),
+      0
+    );
+    const reservedInvestment = round2(
+      Math.max(Number(vault?.investment_goal ?? 0), investedTotal)
+    );
+
+    return monthRepository.update(month.id, {
+      bank_balance: bank,
+      reserved_fixed_expenses: reservedFixed,
+      reserved_investment: reservedInvestment,
+      reserved_invoices: reservedInvoices,
+      available_balance: computeAvailable(
+        bank,
+        reservedFixed,
+        reservedInvestment,
+        reservedInvoices
+      ),
+    });
+  },
+
+  /**
+   * Zera os lançamentos do mês, mantendo o cadastro.
+   *
+   * Apaga transações, pagamentos, aportes e desmarca as faturas — tudo que
+   * representa "já aconteceu". Depois recalcula, então saldo e reservas saem
+   * coerentes com o estado limpo.
+   *
+   * Desmarcar as faturas é o que faltava na versão anterior: elas ficavam
+   * pagas enquanto o saldo era recalculado como se nunca tivessem sido, e o
+   * disponível passava a mostrar um dinheiro que já tinha saído.
+   */
+  async resetMonth(month: Month): Promise<Month> {
+    if (month.closed) throw new Error("Este mês já está fechado.");
+
+    const invoices = await cardInvoiceRepository.listByCompetence(
+      month.year,
+      month.month
+    );
+
+    await Promise.all([
+      transactionRepository.removeByMonth(month.id),
+      paymentRepository.removeByMonth(month.id),
+      investmentRepository.removeByMonth(month.id),
+      budgetRepository.resetSpentByMonth(month.id),
+      ...invoices
+        .filter((i) => i.paid)
+        .map((i) =>
+          cardInvoiceRepository.update(i.id, { paid: false, paid_at: null })
+        ),
+    ]);
+
+    return this.recalculate(month);
   },
 
   /** Atualiza o valor reservado para investimento e o disponível do mês atual caso a meta mude. */
