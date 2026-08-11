@@ -165,7 +165,7 @@ export const AssistantService = {
     let content = "";
     let actionExecuted: AssistantAction = "unknown";
     let lastPayload: AssistantPayload = {};
-    let extraData: AssistantReplyData | null = null;
+    const extraData: AssistantReplyData | null = null;
 
     const executedDescriptions: string[] = [];
     const pendingActions: { action: AssistantAction; payload: AssistantPayload }[] = [];
@@ -190,24 +190,27 @@ export const AssistantService = {
             throw new Error("Valor do gasto inválido.");
           }
 
+          /*
+           * Categoria é opcional: sem correspondência, o gasto entra sem
+           * categoria em vez de travar pedindo confirmação. Registrar o valor
+           * é o que importa — classificar depois é ajuste, não pré-requisito.
+           */
           const matched = matchCategory(payload.category, budgets);
-          if (!matched) {
-            pendingActions.push(item);
-          } else {
-            await transactionService.registerExpense({
-              month,
-              amount,
-              categoryId: matched.category_id,
-              description: payload.description || message,
-              date: payload.date || undefined,
-              source: "ai",
-            });
-            executedDescriptions.push(
-              `- ${matched.category.emoji} **${matched.category.name}**: ${formatCurrency(amount)} (${payload.description || "Gasto"})`
-            );
-            actionExecuted = "create_transaction";
-            lastPayload = payload;
-          }
+          await transactionService.registerExpense({
+            month,
+            amount,
+            categoryId: matched?.category_id ?? null,
+            description: payload.description || message,
+            date: payload.date || undefined,
+            source: "ai",
+          });
+          executedDescriptions.push(
+            matched
+              ? `- ${matched.category.emoji} **${matched.category.name}**: ${formatCurrency(amount)} (${payload.description || "Gasto"})`
+              : `- **Sem categoria**: ${formatCurrency(amount)} (${payload.description || "Gasto"})`
+          );
+          actionExecuted = "create_transaction";
+          lastPayload = payload;
         } else if (action === "create_income") {
           const amount = payload.amount;
           if (!amount || amount <= 0) {
@@ -376,25 +379,23 @@ export const AssistantService = {
       contentParts.push(executedDescriptions.join("\n"));
     }
 
+    /*
+     * Só sobra pendência quando a ação não é um gasto — gasto fixo sem
+     * correspondência, ou intenção que o modelo não soube classificar.
+     * Gastos nunca ficam pendentes: entram sem categoria.
+     */
     if (pendingActions.length > 0) {
-      contentParts.push("\n**Preciso de confirmação para o seguinte lançamento:**");
       const firstPending = pendingActions[0];
+      contentParts.push("\n**Não consegui concluir este item:**");
       contentParts.push(
-        `- **Valor**: ${formatCurrency(firstPending.payload.amount || 0)} (${firstPending.payload.description || "Sem descrição"})`
+        `- ${firstPending.payload.description || firstPending.payload.expense_name || "Lançamento"}`
       );
-      contentParts.push("\nEscolha a categoria correspondente abaixo para concluir.");
+      contentParts.push(
+        "\nReformule a mensagem ou registre pela tela correspondente."
+      );
 
       actionExecuted = "unknown";
-      lastPayload = {
-        ...firstPending.payload,
-        reason: "category_not_identified",
-      };
-      extraData = {
-        categories: budgets.map((b) => b.category),
-        amount: firstPending.payload.amount || 0,
-        description: firstPending.payload.description || message,
-        date: firstPending.payload.date || new Date().toISOString().split("T")[0],
-      };
+      lastPayload = { ...firstPending.payload, reason: "not_understood" };
     } else {
       if (executedDescriptions.length > 0) {
         contentParts.push(`\n**Novo Saldo Disponível**: ${formatCurrency(finalAvailableBalance)}`);

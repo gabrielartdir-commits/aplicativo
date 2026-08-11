@@ -3,58 +3,29 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, ArrowUp, Mic, Sparkles, X, MessageSquare, Send } from "lucide-react";
+import { ArrowUp, Mic, Sparkles, X, MessageSquare, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
-import type { Category, Month } from "@/types/domain";
-import { formatCurrency } from "@/utils/format";
+import type { Month } from "@/types/domain";
 import { useAiMessage } from "../hooks/use-ai-message";
-import { useRegisterExpense } from "../hooks/use-register-expense";
 import { aiConversationRepository } from "@/services/repositories/ai-conversation-repository";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 
-interface PickerData {
-  categories: Category[];
-  amount: number;
-  description: string;
-  date: string;
-}
-
 export function AiInput({ month }: { month: Month }) {
   const [message, setMessage] = useState("");
   const [reply, setReply] = useState<string | null>(null);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [pickerData, setPickerData] = useState<PickerData | null>(null);
-  const [selectedCategoryId, setSelectedCategoryId] = useState("");
 
   // Mobile layout state
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const ai = useAiMessage();
-  const registerExpense = useRegisterExpense();
 
   // Load chat history for the mobile ChatGPT-style view
   const { data: allMessages } = useQuery({
@@ -86,41 +57,10 @@ export function AiInput({ month }: { month: Month }) {
         message: trimmed,
         monthId: month.id,
       });
-
-      // Categoria ambígua → abre o seletor para concluir o lançamento
-      if (
-        result.actionExecuted === "unknown" &&
-        result.payload?.reason === "category_not_identified" &&
-        result.data?.categories
-      ) {
-        setPickerData({
-          categories: result.data.categories,
-          amount: result.data.amount || 0,
-          description: result.data.description || trimmed,
-          date: result.data.date || new Date().toISOString().split("T")[0],
-        });
-        setSelectedCategoryId("");
-        setPickerOpen(true);
-      }
       setReply(result.content);
     } catch {
       // Erro é tratado pelo onError no hook
     }
-  }
-
-  async function handleConfirmCategory() {
-    if (!pickerData || !selectedCategoryId) return;
-
-    await registerExpense.mutateAsync({
-      month,
-      amount: pickerData.amount,
-      categoryId: selectedCategoryId,
-      description: pickerData.description,
-      date: pickerData.date,
-    });
-
-    setPickerOpen(false);
-    setPickerData(null);
   }
 
   return (
@@ -364,88 +304,6 @@ export function AiInput({ month }: { month: Month }) {
           </>
         )}
       </AnimatePresence>
-
-      {/* ==================== GLOBAL CATEGORY PICKER OVERLAY ==================== */}
-      <Dialog open={pickerOpen} onOpenChange={(o) => setPickerOpen(o)}>
-        <DialogContent className="sm:max-w-sm rounded-[24px]">
-          <DialogHeader>
-            <div className="flex items-center gap-2">
-              <AlertCircle className="size-5 text-warning" />
-              <DialogTitle className="text-sm">Categoria não identificada</DialogTitle>
-            </div>
-            <DialogDescription className="text-xs">
-              A IA não conseguiu determinar a categoria de forma precisa.
-              Escolha manualmente para concluir o lançamento.
-            </DialogDescription>
-          </DialogHeader>
-
-          {pickerData && (
-            <div className="space-y-4 py-2">
-              <div className="space-y-1.5 rounded-[16px] border bg-muted/40 p-3.5 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Lançamento:</span>
-                  <span className="font-semibold">{pickerData.description}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Valor:</span>
-                  <span className="font-semibold text-rose-400">
-                    {formatCurrency(pickerData.amount)}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Data:</span>
-                  <span className="font-semibold">{pickerData.date}</span>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="picker-category" className="text-xs">Escolha a categoria</Label>
-                <Select
-                  value={selectedCategoryId || null}
-                  onValueChange={(val) => setSelectedCategoryId(val as string)}
-                  items={pickerData.categories.map((c) => ({
-                    value: c.id,
-                    label: `${c.emoji} ${c.name}`,
-                  }))}
-                >
-                  <SelectTrigger id="picker-category" className="w-full rounded-[16px] text-xs">
-                    <SelectValue placeholder="Selecione…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {pickerData.categories.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.emoji} {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          )}
-
-          <DialogFooter className="flex flex-row justify-end gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              className="rounded-[14px] text-xs"
-              onClick={() => {
-                setPickerOpen(false);
-                setPickerData(null);
-              }}
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              className="rounded-[14px] text-xs"
-              onClick={handleConfirmCategory}
-              disabled={!selectedCategoryId || registerExpense.isPending}
-            >
-              Confirmar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

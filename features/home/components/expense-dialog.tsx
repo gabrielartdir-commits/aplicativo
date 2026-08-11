@@ -32,7 +32,8 @@ const schema = z.object({
     .string({ message: "Informe um valor" })
     .transform(parseCurrencyInput)
     .pipe(z.number().positive("O valor deve ser maior que zero")),
-  categoryId: z.string().min(1, "Escolha uma categoria"),
+  /** Vazio registra o gasto sem categoria — classificar é opcional. */
+  categoryId: z.string(),
   description: z.string(),
   date: z.string().min(1, "Informe a data"),
 });
@@ -85,7 +86,7 @@ export function ExpenseDialog({
     await registerExpense.mutateAsync({
       month,
       amount: values.amount,
-      categoryId: values.categoryId,
+      categoryId: values.categoryId || null,
       description: values.description,
       date: values.date,
     });
@@ -127,18 +128,27 @@ export function ExpenseDialog({
             </div>
           </div>
           <div className="space-y-2">
-            <Label>Categoria</Label>
+            <div className="flex items-center justify-between gap-2">
+              <Label>Categoria</Label>
+              {form.watch("categoryId") && (
+                <button
+                  type="button"
+                  onClick={() => form.setValue("categoryId", "")}
+                  className="text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  Limpar
+                </button>
+              )}
+            </div>
             <Select
               items={selectItems}
               value={form.watch("categoryId") || null}
               onValueChange={(value) =>
-                form.setValue("categoryId", (value as string) ?? "", {
-                  shouldValidate: true,
-                })
+                form.setValue("categoryId", (value as string) ?? "")
               }
             >
               <SelectTrigger className="w-full">
-                <SelectValue placeholder="Escolha uma categoria" />
+                <SelectValue placeholder="Sem categoria (opcional)" />
               </SelectTrigger>
               <SelectContent>
                 {selectItems.map((item) => (
@@ -148,11 +158,6 @@ export function ExpenseDialog({
                 ))}
               </SelectContent>
             </Select>
-            {errors.categoryId && (
-              <p className="text-sm text-destructive">
-                {errors.categoryId.message}
-              </p>
-            )}
           </div>
           <div className="space-y-2">
             <Label htmlFor="exp-description">Descrição</Label>
