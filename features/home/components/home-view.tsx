@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { investmentRepository } from "@/services/repositories/investment-repository";
+import { useTotalInvested } from "@/hooks/use-total-invested";
 import { Eye, EyeOff, PiggyBank, Plus, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -77,31 +76,8 @@ export function HomeView() {
     return (month?.available_balance ?? 0) - totalRemaining;
   }, [month?.available_balance, totalRemaining]);
 
-  const { data: allInvestments } = useQuery({
-    queryKey: ["investments"],
-    queryFn: () => investmentRepository.listAll(),
-  });
-
-  const totalInvestments = useMemo(() => {
-    const dbTotal = allInvestments?.reduce((sum, inv) => sum + inv.amount, 0) || 0;
-    let localTotal = 0;
-    if (typeof window !== "undefined") {
-      const raw = window.localStorage.getItem("budgetos.investment-reserves");
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw);
-          localTotal = parsed.reduce((acc: number, r: any) => acc + (r.current || 0), 0);
-        } catch {}
-      }
-    }
-    
-    // Default fallback only if both are 0 (initial onboarding user)
-    if (dbTotal === 0 && localTotal === 0) {
-      return 30100;
-    }
-    
-    return Math.max(dbTotal, localTotal);
-  }, [allInvestments]);
+  /** Mesmo total acumulado exibido na aba Investimentos. */
+  const { total: totalInvestments } = useTotalInvested();
 
   useEffect(() => {
     setHidden(window.localStorage.getItem(STORAGE_KEY) === "1");

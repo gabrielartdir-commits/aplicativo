@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTotalInvested } from "@/hooks/use-total-invested";
 import {
   TrendingUp,
   PiggyBank,
@@ -133,7 +134,7 @@ export function InvestmentsView() {
       queryClient.invalidateQueries({ queryKey: queryKeys.currentMonth });
       queryClient.invalidateQueries({ queryKey: queryKeys.months });
     },
-    onError: (error: any) => toast.error(error.message),
+    onError: (error: Error) => toast.error(error.message),
   });
 
   const toggleRecurringStatus = () => {
@@ -251,11 +252,8 @@ export function InvestmentsView() {
       .reduce((sum, inv) => sum + inv.amount, 0);
   }, [currentMonth, allInvestments]);
 
-  const totalAccumulated = useMemo(() => {
-    const dbTotal = allInvestments?.reduce((sum, inv) => sum + inv.amount, 0) || 0;
-    const localTotal = reserves.reduce((sum, r) => sum + r.current, 0);
-    return Math.max(dbTotal, localTotal);
-  }, [allInvestments, reserves]);
+  /** Mesma conta usada na Home, para os dois números nunca divergirem. */
+  const { total: totalAccumulated } = useTotalInvested();
 
   // Create or edit reserve
   const handleSubmitReserve = (e: React.FormEvent) => {
