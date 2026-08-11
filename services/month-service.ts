@@ -6,6 +6,7 @@ import { budgetRepository } from "./repositories/budget-repository";
 import { categoryRepository } from "./repositories/category-repository";
 import { fixedExpenseRepository } from "./repositories/fixed-expense-repository";
 import { monthRepository } from "./repositories/month-repository";
+import { recurringIncomeRepository } from "./repositories/recurring-income-repository";
 import { vaultRepository } from "./repositories/vault-repository";
 
 export interface OpenMonthInput {
@@ -109,7 +110,9 @@ export const monthService = {
     const opened = await this.openMonth(
       {
         startingBalance: input?.startingBalance ?? Number(current.bank_balance),
-        salary: input?.salary ?? Number(current.salary),
+        // O salário do novo mês vem das entradas fixas cadastradas, não do
+        // valor congelado no mês anterior — se um salário mudou, vale o novo.
+        salary: input?.salary ?? (await recurringIncomeRepository.activeTotal()),
         extraIncome: input?.extraIncome ?? 0,
       },
       next

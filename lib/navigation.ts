@@ -1,4 +1,5 @@
 import {
+  ArrowLeftRight,
   History,
   Lightbulb,
   Receipt,
@@ -25,6 +26,7 @@ export interface NavItem {
  */
 export const navigation: NavItem[] = [
   { label: "Hoje", href: "/", icon: Wallet },
+  { label: "Fluxo", href: "/fluxo", icon: ArrowLeftRight },
   { label: "Histórico", href: "/historico", icon: History },
   { label: "Gastos Fixos", href: "/gastos-fixos", icon: Receipt },
   { label: "Parcelas", href: "/parcelas", icon: TrendingUp },

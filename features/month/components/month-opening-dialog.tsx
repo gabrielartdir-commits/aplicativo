@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useFixedExpenses } from "@/hooks/use-fixed-expenses";
 import { useVault } from "@/hooks/use-vault";
+import { useRecurringIncomes } from "@/hooks/use-recurring-incomes";
 import { currentYearMonth, monthLabel } from "@/lib/dates";
 import { computeMonthOpening } from "@/lib/finance";
 import { queryKeys } from "@/lib/query-keys";
@@ -59,6 +60,22 @@ export function MonthOpeningDialog() {
       form.setValue("startingBalance", String(previousBalance));
     }
   }, [previousBalance, form]);
+
+  /** Sugere como salário a soma das entradas fixas já cadastradas. */
+  const { data: recurringIncomes } = useRecurringIncomes();
+  const recurringTotal = useMemo(
+    () =>
+      (recurringIncomes ?? [])
+        .filter((i) => i.active)
+        .reduce((sum, i) => sum + Number(i.amount), 0),
+    [recurringIncomes]
+  );
+
+  useEffect(() => {
+    if (recurringTotal > 0) {
+      form.setValue("salary", String(recurringTotal));
+    }
+  }, [recurringTotal, form]);
 
   const values = form.watch();
   const fixedTotal = useMemo(

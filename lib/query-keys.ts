@@ -8,6 +8,7 @@ export const queryKeys = {
   payments: (monthId: string) => ["payments", monthId] as const,
   transactions: (monthId: string) => ["transactions", monthId] as const,
   adjustments: (monthId: string) => ["adjustments", monthId] as const,
+  recurringIncomes: ["recurring-incomes"] as const,
   months: ["months"] as const,
   aiConversations: ["ai-conversations"] as const,
   creditCards: ["credit-cards"] as const,

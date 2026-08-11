@@ -34,4 +34,21 @@ export const balanceService = {
 
     return adjustment;
   },
+
+  /**
+   * Apaga um ajuste e desfaz o efeito dele no saldo.
+   *
+   * Reaplicar o ajuste com o valor invertido é mais seguro que recalcular do
+   * zero: usa a mesma regra de sinal da aplicação original, então tipos como
+   * `correction` (que aceita valor negativo) voltam exatamente ao que eram.
+   */
+  async remove(adjustment: BalanceAdjustment, month: Month): Promise<void> {
+    if (month.closed) throw new Error("Este mês já está fechado.");
+
+    await adjustmentRepository.remove(adjustment.id);
+    await monthRepository.update(
+      month.id,
+      applyAdjustment(month, adjustment.type, -Number(adjustment.amount))
+    );
+  },
 };

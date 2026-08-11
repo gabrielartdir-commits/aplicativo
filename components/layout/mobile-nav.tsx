@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  ArrowLeftRight,
   Wallet,
   Plus,
   Sparkles,
@@ -51,6 +52,7 @@ export function MobileNav() {
   ];
 
   const extraItems = [
+    { label: "Fluxo", href: "/fluxo", icon: ArrowLeftRight },
     { label: "Parcelas", href: "/parcelas", icon: CalendarRange },
     { label: "Progressão", href: "/progressao", icon: LineChart },
     { label: "Investimentos", href: "/investimentos", icon: TrendingUp },

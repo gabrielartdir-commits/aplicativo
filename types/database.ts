@@ -315,6 +315,33 @@ export type Database = {
         };
         Relationships: [];
       };
+      recurring_incomes: {
+        Row: {
+          id: string;
+          name: string;
+          amount: number;
+          active: boolean;
+          sort_order: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          amount?: number;
+          active?: boolean;
+          sort_order?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          amount?: number;
+          active?: boolean;
+          sort_order?: number;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       credit_cards: {
         Row: {
           id: string;

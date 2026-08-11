@@ -12,6 +12,7 @@ export type Transaction = Tables["transactions"]["Row"];
 export type BalanceAdjustment = Tables["balance_adjustments"]["Row"];
 export type Investment = Tables["investments"]["Row"];
 export type AiConversationEntry = Tables["ai_conversations"]["Row"];
+export type RecurringIncome = Tables["recurring_incomes"]["Row"];
 export type CreditCard = Tables["credit_cards"]["Row"];
 export type CardPurchase = Tables["card_purchases"]["Row"];
 export type CardInstallment = Tables["card_installments"]["Row"];
