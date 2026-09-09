@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
 import {
-  LockKeyhole,
   PiggyBank,
   Vault as VaultIcon,
   RefreshCw,
@@ -30,11 +29,10 @@ import { PageHeader } from "@/components/layout/page-header";
 import { useVault } from "@/hooks/use-vault";
 import { useCurrentMonth } from "@/hooks/use-current-month";
 import { queryKeys } from "@/lib/query-keys";
-import { clearVaultSession } from "@/lib/vault-session";
 import { vaultRepository } from "@/services/repositories/vault-repository";
 import { monthService } from "@/services/month-service";
+import { monthRepository } from "@/services/repositories/month-repository";
 import { formatCurrency, formatDate, parseCurrencyInput } from "@/utils/format";
-import { createClient } from "@/lib/supabase/client";
 
 export function SettingsView() {
   const queryClient = useQueryClient();
@@ -132,12 +130,7 @@ export function SettingsView() {
   const closeMonth = useMutation({
     mutationFn: async () => {
       if (!currentMonth) throw new Error("Mês atual não encontrado.");
-      const supabase = createClient();
-      const { error } = await supabase
-        .from("months")
-        .update({ closed: true })
-        .eq("id", currentMonth.id);
-      if (error) throw new Error(error.message);
+      await monthRepository.update(currentMonth.id, { closed: true });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.currentMonth });
@@ -145,11 +138,6 @@ export function SettingsView() {
     },
     onError: (error) => toast.error(error.message),
   });
-
-  function lockVault() {
-    clearVaultSession();
-    window.location.reload();
-  }
 
   if (!vault) return null;
 
@@ -169,18 +157,13 @@ export function SettingsView() {
             </span>
             <CardTitle>{vault.name}</CardTitle>
             <CardDescription>
-              Cofre criado em {formatDate(vault.created_at)}. Protegido localmente por chave criptográfica.
+              Cofre criado em {formatDate(vault.created_at)}. Dados em data/budgetos.db nesta máquina.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="text-xs text-muted-foreground space-y-1.5">
-              <p>Email: <span className="font-semibold text-foreground">depaulaaqui@gmail.com</span></p>
               <p>Versão do BudgetOS: <span className="font-semibold text-foreground">v2.0.0</span></p>
             </div>
-            <Button variant="outline" size="sm" onClick={lockVault}>
-              <LockKeyhole className="size-4 mr-2" />
-              Bloquear cofre
-            </Button>
           </CardContent>
         </Card>
 

@@ -3,8 +3,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/query-keys";
+import { budgetRepository } from "@/services/repositories/budget-repository";
 import { categoryRepository } from "@/services/repositories/category-repository";
-import { createClient } from "@/lib/supabase/client";
+import { monthRepository } from "@/services/repositories/month-repository";
 import type { Database } from "@/types/database";
 
 type CategoryInsert = Database["public"]["Tables"]["categories"]["Insert"];
@@ -20,62 +21,50 @@ export function useCategoryMutations() {
 
   const create = useMutation({
     mutationFn: (input: CategoryInsert) => categoryRepository.create(input),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+      toast.success("Categoria criada.");
+    },
     onError: (error) => toast.error(error.message),
   });
 
   const update = useMutation({
     mutationFn: async ({ id, ...patch }: CategoryUpdate & { id: string }) => {
-      // 1. Update category default limit
-      const updatedCategory = await categoryRepository.update(id, patch);
+      const updated = await categoryRepository.update(id, patch);
 
-      // 2. Synchronize with the current month budget if it exists and limit changed
+      /*
+       * Mudar o limite padrão precisa alcançar o mês corrente: `categories`
+       * guarda o plano, mas quem o mês lê é `monthly_category_budgets`, que
+       * recebeu uma cópia na abertura.
+       */
       if (patch.default_limit !== undefined) {
-        const supabase = createClient();
-        
-        // Find latest open month
-        const { data: month } = await supabase
-          .from("months")
-          .select("id")
-          .eq("closed", false)
-          .order("year", { ascending: false })
-          .order("month", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
+        const month = await monthRepository.findLatestOpen();
         if (month) {
-          // Find the category budget for this month
-          const { data: budget } = await supabase
-            .from("monthly_category_budgets")
-            .select("id")
-            .eq("month_id", month.id)
-            .eq("category_id", id)
-            .maybeSingle();
-
+          const budget = await budgetRepository.findByMonthAndCategory(
+            month.id,
+            id
+          );
           if (budget) {
-            // Update current_limit and planned_limit
-            const { error: budgetError } = await supabase
-              .from("monthly_category_budgets")
-              .update({
-                planned_limit: patch.default_limit,
-                current_limit: patch.default_limit,
-              })
-              .eq("id", budget.id);
-
-            if (budgetError) throw new Error(budgetError.message);
+            await budgetRepository.updateLimits(budget.id, patch.default_limit);
           }
         }
       }
 
-      return updatedCategory;
+      return updated;
     },
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+      toast.success("Categoria atualizada.");
+    },
     onError: (error) => toast.error(error.message),
   });
 
   const remove = useMutation({
     mutationFn: (id: string) => categoryRepository.remove(id),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+      toast.success("Categoria removida.");
+    },
     onError: (error) => toast.error(error.message),
   });
 

@@ -1,8 +1,7 @@
 /**
- * Tipos do banco Supabase — mantidos em sincronia com
- * supabase/migrations/. Quando houver acesso ao projeto, substituir
- * pelo codegen oficial:
- *   npx supabase gen types typescript --project-id <id> > types/database.ts
+ * Tipos do banco local (SQLite) — mantidos em sincronia com
+ * lib/db/schema.sql. Continuam no formato Row/Insert/Update porque toda a
+ * aplicação já os consome assim.
  */
 export type Json =
   | string
@@ -23,22 +22,19 @@ export type Database = {
       vault: {
         Row: {
           id: string;
-          name: string;
-          access_key_hash: string;
+          name: string;
           investment_goal: number;
           created_at: string;
         };
         Insert: {
           id?: string;
-          name: string;
-          access_key_hash: string;
+          name: string;
           investment_goal?: number;
           created_at?: string;
         };
         Update: {
           id?: string;
-          name?: string;
-          access_key_hash?: string;
+          name?: string;
           investment_goal?: number;
           created_at?: string;
         };

@@ -5,9 +5,7 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { isSupabaseConfigured } from "@/lib/env";
 import { useVault } from "@/hooks/use-vault";
-import { SetupScreen } from "@/components/shared/setup-screen";
 import { StepCategories } from "./step-categories";
 import { StepFixedExpenses } from "./step-fixed-expenses";
 import { StepInvestment } from "./step-investment";
@@ -16,7 +14,7 @@ import { StepVault } from "./step-vault";
 const steps = [
   {
     title: "Crie seu cofre",
-    description: "Seu espaço financeiro pessoal, protegido por uma chave de acesso.",
+    description: "Seu espaço financeiro pessoal, guardado nesta máquina.",
   },
   {
     title: "Meta de investimento",
@@ -33,9 +31,8 @@ const steps = [
 ];
 
 export function OnboardingView() {
-  const configured = isSupabaseConfigured();
   const router = useRouter();
-  const { data: vault, isLoading } = useVault(configured);
+  const { data: vault, isLoading } = useVault();
   const [step, setStep] = useState(0);
 
   // Se já existe um Vault e o onboarding nem começou, este acesso é indevido.
@@ -43,7 +40,6 @@ export function OnboardingView() {
     if (!isLoading && vault && step === 0) router.replace("/");
   }, [isLoading, vault, step, router]);
 
-  if (!configured) return <SetupScreen />;
 
   const current = steps[step];
 

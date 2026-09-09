@@ -1,85 +1,18 @@
-import { createClient } from "@/lib/supabase/client";
-import type { Database } from "@/types/database";
-import type { Subscription, SubscriptionWithCard } from "@/types/domain";
+import {
+  createSubscription,
+  listActiveSubscriptions,
+  listActiveSubscriptionsByCardForCompetence,
+  listSubscriptions,
+  removeSubscription,
+  updateSubscription,
+} from "@/services/actions/cards.actions";
 
-type SubscriptionInsert =
-  Database["public"]["Tables"]["subscriptions"]["Insert"];
-type SubscriptionUpdate =
-  Database["public"]["Tables"]["subscriptions"]["Update"];
-
-const WITH_RELATIONS = `
-  *,
-  card:credit_cards (*),
-  category:categories (*)
-`;
-
+/** Fachada sobre as Server Actions (ver vault-repository). */
 export const subscriptionRepository = {
-  async list(): Promise<SubscriptionWithCard[]> {
-    const { data, error } = await createClient()
-      .from("subscriptions")
-      .select(WITH_RELATIONS)
-      .order("billing_day");
-    if (error) throw new Error(error.message);
-    return (data ?? []) as unknown as SubscriptionWithCard[];
-  },
-
-  async listActive(): Promise<SubscriptionWithCard[]> {
-    const { data, error } = await createClient()
-      .from("subscriptions")
-      .select(WITH_RELATIONS)
-      .eq("active", true)
-      .order("billing_day");
-    if (error) throw new Error(error.message);
-    return (data ?? []) as unknown as SubscriptionWithCard[];
-  },
-
-  /**
-   * Assinaturas ativas no crédito de um cartão que já valiam numa competência.
-   * O recorte por start_year/start_month impede que uma assinatura cadastrada
-   * hoje apareça retroativamente na fatura de um mês passado.
-   */
-  async listActiveByCardForCompetence(
-    cardId: string,
-    year: number,
-    month: number
-  ): Promise<Subscription[]> {
-    const { data, error } = await createClient()
-      .from("subscriptions")
-      .select("*")
-      .eq("active", true)
-      .eq("payment_method", "credit")
-      .eq("card_id", cardId)
-      .or(`start_year.lt.${year},and(start_year.eq.${year},start_month.lte.${month})`);
-    if (error) throw new Error(error.message);
-    return data;
-  },
-
-  async create(input: SubscriptionInsert): Promise<Subscription> {
-    const { data, error } = await createClient()
-      .from("subscriptions")
-      .insert(input)
-      .select()
-      .single();
-    if (error) throw new Error(error.message);
-    return data;
-  },
-
-  async update(id: string, patch: SubscriptionUpdate): Promise<Subscription> {
-    const { data, error } = await createClient()
-      .from("subscriptions")
-      .update(patch)
-      .eq("id", id)
-      .select()
-      .single();
-    if (error) throw new Error(error.message);
-    return data;
-  },
-
-  async remove(id: string): Promise<void> {
-    const { error } = await createClient()
-      .from("subscriptions")
-      .delete()
-      .eq("id", id);
-    if (error) throw new Error(error.message);
-  },
+  list: listSubscriptions,
+  listActive: listActiveSubscriptions,
+  listActiveByCardForCompetence: listActiveSubscriptionsByCardForCompetence,
+  create: createSubscription,
+  update: updateSubscription,
+  remove: removeSubscription,
 };

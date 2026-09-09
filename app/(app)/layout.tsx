@@ -1,6 +1,6 @@
 import { AppShell } from "@/components/layout/app-shell";
-import { VaultGate } from "@/features/auth";
 import { MonthGate } from "@/features/month";
+import { VaultGate } from "@/features/vault";
 
 export default function AppLayout({
   children,

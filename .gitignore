@@ -36,6 +36,9 @@ yarn-error.log*
 # segredos locais
 Chave de acesso.txt
 
+# banco local — seus dados financeiros nao vao para o repositorio
+/data/
+
 # vercel
 .vercel
 
