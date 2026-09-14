@@ -28,9 +28,11 @@ import {
 import { monthLabel } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatDate } from "@/utils/format";
+import { AnnualFlow } from "./annual-flow";
 import { RecurringIncomesPanel } from "./recurring-incomes-panel";
 
 type Filter = "tudo" | "entradas" | "saidas";
+type View = "mes" | "ano";
 
 const KIND_STYLE: Record<
   LedgerKind,
@@ -118,6 +120,7 @@ export function FlowView() {
   const [filter, setFilter] = useState<Filter>("tudo");
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
+  const [view, setView] = useState<View>("mes");
 
   const visible = useMemo(() => {
     if (filter === "entradas") return entries.filter((e) => e.signedAmount > 0);
@@ -132,12 +135,27 @@ export function FlowView() {
       <PageHeader
         title="Fluxo"
         description={
-          month
-            ? `Entradas e saídas de ${monthLabel(month).toLowerCase()}.`
-            : "Entradas e saídas do mês."
+          view === "ano"
+            ? "Entradas e saídas de todos os meses do ano."
+            : month
+              ? `Entradas e saídas de ${monthLabel(month).toLowerCase()}.`
+              : "Entradas e saídas do mês."
         }
       />
 
+      <Tabs<View>
+        items={[
+          { value: "mes", label: "Mês atual" },
+          { value: "ano", label: "Ano" },
+        ]}
+        value={view}
+        onValueChange={setView}
+      />
+
+      {view === "ano" ? (
+        <AnnualFlow initialYear={month?.year ?? new Date().getFullYear()} />
+      ) : (
+        <>
       {/* Entradas × saídas */}
       <div className="grid grid-cols-3 gap-2 md:gap-4">
         <Card>
@@ -259,6 +277,8 @@ export function FlowView() {
             onOpenChange={setAdjustOpen}
             month={month}
           />
+        </>
+      )}
         </>
       )}
     </div>
