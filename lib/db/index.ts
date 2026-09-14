@@ -71,13 +71,22 @@ function bind(params: Params): Record<string, string | number | null> {
   return out;
 }
 
+/*
+ * O node:sqlite devolve cada linha com protótipo nulo. O Next se recusa a
+ * enviar esses objetos do servidor para o navegador, então as linhas são
+ * copiadas para objetos comuns antes de sair daqui. No `next dev` isso passa
+ * sem erro; em produção a Server Action falha.
+ */
 export function all<T = Row>(sql: string, params: Params = {}): T[] {
-  return db().prepare(sql).all(bind(params)) as T[];
+  return db()
+    .prepare(sql)
+    .all(bind(params))
+    .map((row) => ({ ...row }) as T);
 }
 
 export function get<T = Row>(sql: string, params: Params = {}): T | null {
   const row = db().prepare(sql).get(bind(params));
-  return (row as T) ?? null;
+  return row ? ({ ...row } as T) : null;
 }
 
 export function run(sql: string, params: Params = {}): void {
