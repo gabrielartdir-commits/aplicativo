@@ -45,6 +45,15 @@ Lembrete do 5º dia útil (opcional):
 powershell -ExecutionPolicy Bypass -File scripts\instalar-lembrete.ps1
 ```
 
+## Exportar e fazer backup
+
+Configurações → **Baixar planilha (.xlsx)**: uma aba por assunto (meses,
+entradas e contas fixas, assinaturas, cartões, compras parceladas, parcelas,
+faturas, lançamentos, ajustes, aportes, orçamentos). É só leitura — não
+reimporta.
+
+Backup que restaura é copiar `data/budgetos.db` com o app fechado.
+
 ## Onde ficam os dados
 
 `data/budgetos.db` — um arquivo SQLite nesta máquina. Backup é copiar o
@@ -76,6 +85,7 @@ features/       Cada funcionalidade isolada: componentes, hooks e schemas própr
 hooks/          Hooks globais de dados (TanStack Query) e mutações compartilhadas.
 lib/            Infraestrutura: banco local, navegação, cn().
   db/           Schema SQLite e conexão. Roda só no servidor.
+  export/       Monta o .xlsx de exportação (ExcelJS). Só no servidor.
   ai.ts         Cliente do Claude (SDK da Anthropic). Duas camadas: "fast"
                 (Haiku) interpreta a frase de cada lançamento; "deep" (Opus)
                 analisa o orçamento. Chave em ANTHROPIC_API_KEY.

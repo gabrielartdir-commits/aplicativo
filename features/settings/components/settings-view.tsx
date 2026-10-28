@@ -10,7 +10,7 @@ import {
   Calculator,
   Lock,
   Download,
-  Upload,
+  FileSpreadsheet,
   Sun,
   Moon,
 } from "lucide-react";
@@ -74,24 +74,42 @@ export function SettingsView() {
     onError: (error) => toast.error(error.message),
   });
 
-  const handleExportData = () => {
-    const data = {
-      vault,
-      currentMonth,
-      exportedAt: new Date().toISOString(),
-    };
-    const fileData = JSON.stringify(data, null, 2);
-    const blob = new Blob([fileData], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.download = `backup_budgetos_${currentMonth?.year || ""}_${currentMonth?.month || ""}.json`;
-    link.href = url;
-    link.click();
-    toast.success("Backup exportado com sucesso!");
-  };
+  const [exporting, setExporting] = useState(false);
 
-  const handleImportData = () => {
-    toast.success("Importação concluída com sucesso (simulada).");
+  /**
+   * Baixa a planilha com tudo. O arquivo é montado no servidor e vem como
+   * anexo; o link temporário é revogado depois para não segurar memória.
+   */
+  const exportSpreadsheet = async () => {
+    setExporting(true);
+    try {
+      const res = await fetch("/api/exportar");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "Falha ao gerar a planilha.");
+      }
+
+      // O nome do arquivo vem do Content-Disposition, com a data da exportação.
+      const disposition = res.headers.get("Content-Disposition") ?? "";
+      const match = disposition.match(/filename="([^"]+)"/);
+      const filename = match?.[1] ?? "budgetos.xlsx";
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(url);
+
+      toast.success(`Planilha gerada: ${filename}`);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Falha ao gerar a planilha."
+      );
+    } finally {
+      setExporting(false);
+    }
   };
 
   /**
@@ -237,16 +255,47 @@ export function SettingsView() {
             <span className="mb-1 flex size-9 items-center justify-center rounded-lg border bg-card">
               <Download className="size-4 text-muted-foreground" />
             </span>
-            <CardTitle>Backup e Portabilidade</CardTitle>
-            <CardDescription>Exporte seus dados financeiros ou restaure um backup existente.</CardDescription>
+            <CardTitle>Exportar e fazer backup</CardTitle>
+            <CardDescription>
+              Leve tudo para uma planilha, ou guarde uma cópia do banco.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={handleExportData}>
-              <Download className="size-4 mr-2" /> Exportar JSON
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleImportData}>
-              <Upload className="size-4 mr-2" /> Importar Backup
-            </Button>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Button size="sm" onClick={exportSpreadsheet} disabled={exporting}>
+                {exporting ? (
+                  <>
+                    <RefreshCw className="size-4 mr-2 animate-spin" /> Gerando…
+                  </>
+                ) : (
+                  <>
+                    <FileSpreadsheet className="size-4 mr-2" /> Baixar planilha
+                    (.xlsx)
+                  </>
+                )}
+              </Button>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Uma aba por assunto: meses, entradas e contas fixas, assinaturas,
+                cartões, compras parceladas, parcelas, faturas, lançamentos,
+                ajustes, aportes e orçamentos. Abre no Excel, no Google Planilhas
+                e no LibreOffice.
+              </p>
+            </div>
+
+            <div className="space-y-2 border-t pt-4">
+              <p className="text-xs font-semibold text-foreground">
+                Backup de verdade
+              </p>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                A planilha é para ler e conferir — ela não volta para dentro do
+                app. Para poder restaurar, copie o arquivo{" "}
+                <code className="rounded bg-muted px-1 py-0.5 text-[11px]">
+                  data/budgetos.db
+                </code>{" "}
+                desta pasta para outro lugar com o app fechado. Restaurar é pôr
+                o arquivo de volta no mesmo caminho.
+              </p>
+            </div>
           </CardContent>
         </Card>
 
