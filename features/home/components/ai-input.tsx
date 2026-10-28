@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
 import type { Month } from "@/types/domain";
+import { useSpeechRecognition } from "@/hooks/use-speech-recognition";
 import { useAiMessage } from "../hooks/use-ai-message";
 import { aiConversationRepository } from "@/services/repositories/ai-conversation-repository";
 import { queryKeys } from "@/lib/query-keys";
@@ -26,6 +27,28 @@ export function AiInput({ month }: { month: Month }) {
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const ai = useAiMessage();
+  const speech = useSpeechRecognition();
+
+  /**
+   * O que já estava escrito quando o microfone ligou. O ditado é somado a
+   * isso, para falar não apagar o que foi digitado antes.
+   */
+  const dictationBaseRef = useRef("");
+
+  useEffect(() => {
+    if (!speech.transcript) return;
+    setMessage(`${dictationBaseRef.current} ${speech.transcript}`.trim());
+  }, [speech.transcript]);
+
+  function toggleMic() {
+    if (speech.listening) {
+      speech.stop();
+      return;
+    }
+    dictationBaseRef.current = message;
+    speech.reset();
+    speech.start();
+  }
 
   // Load chat history for the mobile ChatGPT-style view
   const { data: allMessages } = useQuery({
@@ -81,22 +104,30 @@ export function AiInput({ month }: { month: Month }) {
             className="min-h-[58px] resize-none border-0 bg-transparent p-4 pr-24 text-[15px] shadow-none focus-visible:ring-0 dark:bg-transparent"
           />
           <div className="absolute right-3 bottom-3 flex items-center gap-1.5">
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="Entrada por voz (em breve)"
-                    className="cursor-not-allowed text-muted-2"
-                    onClick={(e) => e.preventDefault()}
-                  >
-                    <Mic />
-                  </Button>
-                }
-              />
-              <TooltipContent>Entrada por voz — em breve</TooltipContent>
-            </Tooltip>
+            {speech.supported && (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={speech.listening ? "Parar de ditar" : "Ditar por voz"}
+                      aria-pressed={speech.listening}
+                      onClick={toggleMic}
+                      className={cn(
+                        speech.listening &&
+                          "bg-rose-500/10 text-rose-400 hover:bg-rose-500/15"
+                      )}
+                    >
+                      <Mic className={cn(speech.listening && "animate-pulse")} />
+                    </Button>
+                  }
+                />
+                <TooltipContent>
+                  {speech.listening ? "Ouvindo — clique para parar" : "Ditar por voz"}
+                </TooltipContent>
+              </Tooltip>
+            )}
             <Button
               size="icon"
               aria-label="Enviar"
@@ -108,6 +139,16 @@ export function AiInput({ month }: { month: Month }) {
             </Button>
           </div>
         </div>
+
+        {speech.listening && (
+          <p className="mt-2 flex items-center gap-2 px-1 text-xs text-muted-foreground">
+            <span className="size-1.5 animate-pulse rounded-full bg-rose-400" />
+            Ouvindo… fale o lançamento e clique no microfone para parar.
+          </p>
+        )}
+        {speech.error && !speech.listening && (
+          <p className="mt-2 px-1 text-xs text-destructive">{speech.error}</p>
+        )}
 
         <AnimatePresence>
           {(ai.isPending || reply) && (
@@ -288,8 +329,28 @@ export function AiInput({ month }: { month: Month }) {
                     }}
                     placeholder="Pergunte ao BudgetOS..."
                     rows={1}
-                    className="flex-1 min-h-[44px] max-h-[100px] resize-none border-0 bg-transparent p-3 pr-12 text-xs shadow-none focus-visible:ring-0 dark:bg-transparent"
+                    className={cn(
+                      "flex-1 min-h-[44px] max-h-[100px] resize-none border-0 bg-transparent p-3 text-xs shadow-none focus-visible:ring-0 dark:bg-transparent",
+                      speech.supported ? "pr-24" : "pr-12"
+                    )}
                   />
+                  {speech.supported && (
+                    <button
+                      onClick={toggleMic}
+                      aria-label={speech.listening ? "Parar de ditar" : "Ditar por voz"}
+                      aria-pressed={speech.listening}
+                      className={cn(
+                        "absolute right-12 bottom-2 size-9 rounded-[14px] flex items-center justify-center active:scale-90 transition-all",
+                        speech.listening
+                          ? "bg-rose-500/15 text-rose-400"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      <Mic
+                        className={cn("size-4", speech.listening && "animate-pulse")}
+                      />
+                    </button>
+                  )}
                   <button
                     disabled={!message.trim() || ai.isPending}
                     onClick={send}

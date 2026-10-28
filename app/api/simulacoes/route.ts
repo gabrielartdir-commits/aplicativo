@@ -69,7 +69,6 @@ DIRETRIZES DE RESPOSTA:
     const reply = await chatCompletion({
       systemPrompt,
       userMessage: message,
-      temperature: 0.2,
     });
 
     return NextResponse.json({ reply });

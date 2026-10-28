@@ -147,7 +147,7 @@ export const AssistantService = {
     const parsedRaw = await chatCompletion({
       systemPrompt,
       userMessage: message,
-      temperature: 0.1,
+      tier: "fast",
       jsonSchema: ASSISTANT_JSON_SCHEMA,
     });
 

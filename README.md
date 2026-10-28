@@ -30,8 +30,14 @@ npm run dev                  # desenvolvimento
 npm run build && npm start   # produção local
 ```
 
-Uma única variável, opcional, em `.env.local`: `AI_API_KEY` para o copiloto.
-Sem ela, todo o resto funciona.
+Uma única variável, opcional, em `.env.local`: `ANTHROPIC_API_KEY` para o
+copiloto, a análise por voz e a consultoria. Sem ela, todo o resto funciona.
+
+Lembrete do 5º dia útil (opcional):
+
+```
+powershell -ExecutionPolicy Bypass -File scripts\instalar-lembrete.ps1
+```
 
 ## Onde ficam os dados
 
@@ -64,9 +70,9 @@ features/       Cada funcionalidade isolada: componentes, hooks e schemas própr
 hooks/          Hooks globais de dados (TanStack Query) e mutações compartilhadas.
 lib/            Infraestrutura: banco local, navegação, cn().
   db/           Schema SQLite e conexão. Roda só no servidor.
-  ai.ts         Cliente de IA para provedores compatíveis com a API da OpenAI
-                (OpenAI, Groq, OpenRouter…). Trocar de provedor é só mexer em
-                AI_BASE_URL, AI_API_KEY e AI_MODEL — ver COMO_INSTALAR.md.
+  ai.ts         Cliente do Claude (SDK da Anthropic). Duas camadas: "fast"
+                (Haiku) interpreta a frase de cada lançamento; "deep" (Opus)
+                analisa o orçamento. Chave em ANTHROPIC_API_KEY.
   finance/      REGRAS FINANCEIRAS — funções puras (disponível, reservas, ajustes).
   assistant/    IA real (Structured Outputs): prompt com contexto do mês,
                 schema JSON, executor de ações (gasto, receita, pagar fixo, ajuste,
@@ -79,6 +85,8 @@ services/       Orquestração com efeitos: monthService, transactionService,
 types/          Database (espelho do schema) + tipos de domínio.
 utils/          Funções puras (formatação de moeda/data pt-BR).
 scripts/        verify-finance.ts — sanidade das regras (npx tsx scripts/verify-finance.ts).
+                lembrete-mensal.ps1 — aviso no 5º dia útil (-Check mostra a data,
+                -Force testa o aviso). instalar-lembrete.ps1 registra a tarefa.
 ```
 
 ## Conceito central

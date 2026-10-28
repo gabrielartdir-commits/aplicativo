@@ -38,7 +38,6 @@ export async function POST(req: NextRequest) {
         null,
         2
       )}`,
-      temperature: 0.3,
     });
 
     return NextResponse.json({ reply });

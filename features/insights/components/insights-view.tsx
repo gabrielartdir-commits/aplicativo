@@ -14,7 +14,11 @@ import { useCardPurchases, useSubscriptions } from "@/hooks/use-cards";
 import { useFixedExpenses } from "@/hooks/use-fixed-expenses";
 import { monthLabel } from "@/lib/dates";
 import { formatCurrency } from "@/utils/format";
+import { Tabs } from "@/components/ui/tabs";
+import { AnnualAdvice } from "./annual-advice";
 import { Markdown } from "./markdown";
+
+type View = "mes" | "ano";
 
 export function InsightsView() {
   const { data: month } = useCurrentMonth();
@@ -28,6 +32,7 @@ export function InsightsView() {
     horizon: 6,
   });
   const [analysis, setAnalysis] = useState<string | null>(null);
+  const [view, setView] = useState<View>("mes");
 
   /** Retrato do orçamento enviado à IA — só números, sem dados de identificação. */
   const context = useMemo(() => {
@@ -105,8 +110,26 @@ export function InsightsView() {
     <div className="space-y-6">
       <PageHeader
         title="Insights"
-        description="Análise do copiloto sobre o mês atual e os próximos."
+        description={
+          view === "ano"
+            ? "Consultoria sobre o ano inteiro."
+            : "Análise do copiloto sobre o mês atual e os próximos."
+        }
       />
+
+      <Tabs<View>
+        items={[
+          { value: "mes", label: "Mês" },
+          { value: "ano", label: "Ano" },
+        ]}
+        value={view}
+        onValueChange={setView}
+      />
+
+      {view === "ano" ? (
+        <AnnualAdvice />
+      ) : (
+        <>
 
       {/* Números que alimentam a análise */}
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
@@ -181,6 +204,8 @@ export function InsightsView() {
           )}
         </CardContent>
       </Card>
+        </>
+      )}
     </div>
   );
 }
