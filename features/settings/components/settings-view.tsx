@@ -11,6 +11,8 @@ import {
   Lock,
   Download,
   FileSpreadsheet,
+  FileDown,
+  Upload,
   Sun,
   Moon,
 } from "lucide-react";
@@ -28,17 +30,22 @@ import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/layout/page-header";
 import { useVault } from "@/hooks/use-vault";
 import { useCurrentMonth } from "@/hooks/use-current-month";
+import { useSheetImports } from "@/hooks/use-sheet-imports";
 import { queryKeys } from "@/lib/query-keys";
 import { vaultRepository } from "@/services/repositories/vault-repository";
 import { monthService } from "@/services/month-service";
 import { monthRepository } from "@/services/repositories/month-repository";
 import { formatCurrency, formatDate, parseCurrencyInput } from "@/utils/format";
+import { ImportDialog } from "./import-dialog";
 
 export function SettingsView() {
   const queryClient = useQueryClient();
   const { data: vault } = useVault();
   const { data: currentMonth } = useCurrentMonth();
+  const { data: sheetImports } = useSheetImports();
   const { theme, setTheme } = useTheme();
+  const [importOpen, setImportOpen] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const [goal, setGoal] = useState("");
   const [mounted, setMounted] = useState(false);
@@ -77,31 +84,43 @@ export function SettingsView() {
   const [exporting, setExporting] = useState(false);
 
   /**
-   * Baixa a planilha com tudo. O arquivo é montado no servidor e vem como
-   * anexo; o link temporário é revogado depois para não segurar memória.
+   * Baixa um .xlsx montado no servidor.
+   *
+   * O arquivo vem como anexo e o nome sai do Content-Disposition, com a data
+   * ou a competência dentro. O link temporário é revogado depois para não
+   * segurar memória.
    */
+  const downloadSpreadsheet = async (
+    endpoint: string,
+    fallbackName: string
+  ) => {
+    const res = await fetch(endpoint);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error ?? "Falha ao gerar a planilha.");
+    }
+
+    const disposition = res.headers.get("Content-Disposition") ?? "";
+    const match = disposition.match(/filename="([^"]+)"/);
+    const filename = match?.[1] ?? fallbackName;
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+    return filename;
+  };
+
   const exportSpreadsheet = async () => {
     setExporting(true);
     try {
-      const res = await fetch("/api/exportar");
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Falha ao gerar a planilha.");
-      }
-
-      // O nome do arquivo vem do Content-Disposition, com a data da exportação.
-      const disposition = res.headers.get("Content-Disposition") ?? "";
-      const match = disposition.match(/filename="([^"]+)"/);
-      const filename = match?.[1] ?? "budgetos.xlsx";
-
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = filename;
-      link.click();
-      URL.revokeObjectURL(url);
-
+      const filename = await downloadSpreadsheet(
+        "/api/exportar",
+        "budgetos.xlsx"
+      );
       toast.success(`Planilha gerada: ${filename}`);
     } catch (error) {
       toast.error(
@@ -109,6 +128,24 @@ export function SettingsView() {
       );
     } finally {
       setExporting(false);
+    }
+  };
+
+  /** O modelo da planilha mensal, com o cadastro atual já dentro. */
+  const downloadTemplate = async (empty: boolean) => {
+    setDownloading(true);
+    try {
+      const filename = await downloadSpreadsheet(
+        `/api/planilha/modelo${empty ? "?vazio=1" : ""}`,
+        "budgetos-modelo.xlsx"
+      );
+      toast.success(`Modelo gerado: ${filename}`);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Falha ao gerar o modelo."
+      );
+    } finally {
+      setDownloading(false);
     }
   };
 
@@ -249,7 +286,111 @@ export function SettingsView() {
           </CardContent>
         </Card>
 
-        {/* Card 4: Backup and Data import/export */}
+        {/* Card 4: Monthly spreadsheet — the main data entry path */}
+        <Card className="border-border/40 lg:col-span-2">
+          <CardHeader>
+            <span className="mb-1 flex size-9 items-center justify-center rounded-lg border bg-card">
+              <Upload className="size-4 text-muted-foreground" />
+            </span>
+            <CardTitle>Planilha do mês</CardTitle>
+            <CardDescription>
+              Preencha o mês todo numa planilha e suba de uma vez, em vez de
+              lançar um por um aqui dentro.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                onClick={() => downloadTemplate(false)}
+                disabled={downloading}
+              >
+                {downloading ? (
+                  <>
+                    <RefreshCw className="size-4 mr-2 animate-spin" /> Gerando…
+                  </>
+                ) : (
+                  <>
+                    <FileDown className="size-4 mr-2" /> Baixar o modelo
+                  </>
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setImportOpen(true)}
+              >
+                <Upload className="size-4 mr-2" /> Importar planilha
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => downloadTemplate(true)}
+                disabled={downloading}
+              >
+                Modelo em branco
+              </Button>
+            </div>
+
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              O modelo vem com o seu cadastro atual já preenchido — contas
+              fixas, assinaturas, parcelas em andamento, cartões, categorias e
+              entradas fixas. A ideia é corrigir valores, lançar os gastos do
+              mês na aba <strong className="text-foreground">Lançamentos</strong>{" "}
+              e subir. A aba{" "}
+              <strong className="text-foreground">Como preencher</strong>{" "}
+              explica cada coluna.
+            </p>
+
+            <div className="space-y-1.5 border-t pt-4 text-xs leading-relaxed text-muted-foreground">
+              <p>
+                <strong className="text-foreground">O cadastro</strong> (contas
+                fixas, assinaturas, cartões, categorias, entradas fixas,
+                compras parceladas) é casado pelo nome: o que está na planilha é
+                atualizado, o que não está é criado, e o que existe só no app
+                fica como está. Importar nunca apaga cadastro — é assim que um
+                gasto fixo que mudou de valor se atualiza sem perder histórico.
+              </p>
+              <p>
+                <strong className="text-foreground">O movimento do mês</strong>{" "}
+                (lançamentos, aportes, ajustes, contas pagas) é substituído por
+                mês: subir o mesmo mês corrigido troca só as linhas que a
+                importação anterior criou, sem duplicar. O que você lançar à mão
+                aqui dentro continua intacto.
+              </p>
+              <p>
+                O app confere o arquivo e mostra tudo que vai mudar antes de
+                gravar, apontando a aba e a linha de qualquer problema.
+              </p>
+            </div>
+
+            {sheetImports && sheetImports.length > 0 && (
+              <div className="space-y-1 border-t pt-4">
+                <p className="text-xs font-semibold text-foreground">
+                  Últimas importações
+                </p>
+                <ul className="space-y-1">
+                  {sheetImports.slice(0, 4).map((item) => (
+                    <li
+                      key={item.id}
+                      className="flex flex-wrap items-baseline gap-x-2 text-[11px] text-muted-foreground"
+                    >
+                      <span className="font-medium text-foreground tabular-nums">
+                        {String(item.month).padStart(2, "0")}/{item.year}
+                      </span>
+                      <span className="truncate">{item.filename}</span>
+                      <span className="ml-auto tabular-nums">
+                        {formatDate(item.imported_at)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Card 5: Backup and Data import/export */}
         <Card className="border-border/40">
           <CardHeader>
             <span className="mb-1 flex size-9 items-center justify-center rounded-lg border bg-card">
@@ -287,8 +428,9 @@ export function SettingsView() {
                 Backup de verdade
               </p>
               <p className="text-xs leading-relaxed text-muted-foreground">
-                A planilha é para ler e conferir — ela não volta para dentro do
-                app. Para poder restaurar, copie o arquivo{" "}
+                Esta planilha é para ler e conferir — quem volta para dentro do
+                app é a planilha do mês, no modelo acima. Para poder restaurar,
+                copie o arquivo{" "}
                 <code className="rounded bg-muted px-1 py-0.5 text-[11px]">
                   data/budgetos.db
                 </code>{" "}
@@ -299,7 +441,7 @@ export function SettingsView() {
           </CardContent>
         </Card>
 
-        {/* Card 5: Operations & Actions */}
+        {/* Card 6: Operations & Actions */}
         <Card className="border-border/40">
           <CardHeader>
             <span className="mb-1 flex size-9 items-center justify-center rounded-lg border bg-card">
@@ -345,6 +487,8 @@ export function SettingsView() {
           </CardContent>
         </Card>
       </div>
+
+      <ImportDialog open={importOpen} onOpenChange={setImportOpen} />
     </div>
   );
 }

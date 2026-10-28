@@ -1,16 +1,6 @@
-import {
-  clearForecast,
-  deleteForecastCompetence,
-  getForecastSummary,
-  getLastForecastImport,
-  listForecastEntries,
-} from "@/services/actions/forecast.actions";
+import { getForecastProjection } from "@/services/actions/forecast.actions";
 
-/** Fachada sobre as Server Actions (ver vault-repository). */
+/** Fachada sobre a Server Action, no padrão dos outros repositórios. */
 export const forecastRepository = {
-  list: listForecastEntries,
-  summary: getForecastSummary,
-  lastImport: getLastForecastImport,
-  removeCompetence: deleteForecastCompetence,
-  clear: clearForecast,
+  projection: getForecastProjection,
 };

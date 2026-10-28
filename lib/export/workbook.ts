@@ -601,49 +601,6 @@ export async function buildWorkbook(): Promise<{
     }))
   );
 
-  // ------------------------------------------------------- Próximos meses
-  // A previsão importada por planilha. Sai com as mesmas colunas do modelo,
-  // então esta aba pode ser editada e reimportada em Próximos meses.
-  const forecast = all<{
-    year: number;
-    month: number;
-    kind: string;
-    group_name: string;
-    name: string;
-    amount: number;
-    status: string;
-    method: string;
-    notes: string;
-  }>(
-    `SELECT year, month, kind, group_name, name, amount, status, method, notes
-       FROM forecast_entries
-      ORDER BY year, month, kind DESC, amount DESC, name`
-  );
-  addSheet(
-    book,
-    "Próximos meses",
-    [
-      { header: "Competência", key: "comp", width: 14 },
-      { header: "Tipo", key: "tipo", width: 11 },
-      { header: "Grupo", key: "grupo", width: 20 },
-      { header: "Descrição", key: "desc", width: 34 },
-      { header: "Valor", key: "valor", width: 14, money: true },
-      { header: "Status", key: "status", width: 13 },
-      { header: "Forma", key: "forma", width: 16 },
-      { header: "Observação", key: "obs", width: 30 },
-    ],
-    forecast.map((f) => ({
-      comp: COMPETENCE(f.year, f.month),
-      tipo: f.kind === "entrada" ? "entrada" : "saída",
-      grupo: f.group_name,
-      desc: f.name,
-      valor: Number(f.amount),
-      status: f.status,
-      forma: f.method,
-      obs: f.notes,
-    }))
-  );
-
   // ------------------------------------------------------------------ Capa
   cover.columns = [{ width: 32 }, { width: 22 }];
   const today = new Date();
@@ -662,7 +619,6 @@ export async function buildWorkbook(): Promise<{
     ["Lançamentos", transactions.length],
     ["Ajustes", adjustments.length],
     ["Aportes", investments.length],
-    ["Próximos meses (previsão)", forecast.length],
   ];
   coverRows.forEach(([label, value]) => cover.addRow([label, value]));
   cover.getRow(1).font = { bold: true, size: 16 };

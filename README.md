@@ -45,40 +45,72 @@ Lembrete do 5º dia útil (opcional):
 powershell -ExecutionPolicy Bypass -File scripts\instalar-lembrete.ps1
 ```
 
-## Próximos meses (previsão por planilha)
+## Planilha do mês (entrada de dados)
 
-A tela **Próximos meses** desenha os gastos futuros a partir de uma planilha,
-sem passar por nenhuma tela de lançamento. É só visualização: nada ali entra
-no saldo, no disponível, nas reservas ou nas faturas.
+O caminho principal para alimentar o app não é digitar lançamento por
+lançamento: é preencher uma planilha por mês e subir de uma vez, em
+**Configurações → Planilha do mês**.
 
-O caminho é sempre o mesmo:
+1. **Baixar o modelo**. Ele já vem com o cadastro atual dentro — contas fixas,
+   assinaturas, parcelas em andamento, cartões, categorias e entradas fixas —
+   e com a competência preenchida. Preencher é corrigir valores, não digitar
+   tudo de novo.
+2. **Preencher** a aba `Lançamentos` com os gastos e as receitas do mês, e
+   acertar o que mudou nas outras abas. A aba *Como preencher*, gerada junto,
+   explica cada coluna.
+3. **Importar**. O app lê, mostra o que vai mudar (linhas, mês, o que será
+   substituído, erros com aba e número da linha) e só grava depois da
+   confirmação.
 
-1. **Baixar o modelo** (botão *Importar planilha*). O *modelo já preenchido*
-   traz os próximos 12 meses com contas fixas, assinaturas, parcelas e
-   entradas que o app conhece — é conferir e completar.
-2. **Preencher** a aba `Lançamentos`: uma linha por gasto, com competência,
-   grupo, descrição e valor. A aba *Como preencher* explica cada coluna.
-3. **Importar**. O app lê o arquivo, mostra o que vai mudar (linhas,
-   competências, quanto seria substituído, erros linha a linha) e só grava
-   depois da confirmação.
+Cada aba vai para a sua tabela, com duas regras distintas:
 
-A gravação é **por competência**: os meses presentes no arquivo são trocados
-pelos dele, os outros ficam intactos. Dá para preencher um mês por vez e
-reimportar o mesmo mês corrigido quantas vezes quiser, sem duplicar.
+- **Cadastro** (contas fixas, assinaturas, cartões, categorias, entradas
+  fixas, compras parceladas) é casado por **nome**: o que está na planilha é
+  atualizado, o que não está é criado, e o que existe só no app fica como
+  está. Importar nunca apaga cadastro — é assim que uma conta fixa que mudou
+  de valor se corrige sem perder histórico.
+- **Movimento do mês** (lançamentos, aportes, ajustes, contas pagas) é
+  **substituído por competência**. O rastro em `sheet_import_rows` guarda qual
+  importação criou qual linha, então reimportar o mesmo mês troca só as linhas
+  da importação anterior: não duplica e não encosta no que foi lançado à mão
+  dentro do app.
 
-O padrão da planilha vive num arquivo só, `lib/forecast/schema.ts` — o modelo
-gerado e o leitor saem dos dois lados dele. A leitura é tolerante: ordem de
-coluna livre, nomes alternativos de cabeçalho, cabeçalho abaixo de um título,
-`11/2026` ou `nov/26` ou `Ano`+`Mês`, `R$ 1.234,56` ou `1234.56`, valor
-negativo lido como positivo e linha em branco ignorada.
+A gravação é uma transação só (ou entra o arquivo inteiro, ou nada); depois
+dela, `cardService.refresh` refaz as faturas da competência e
+`monthService.recalculate` reconstrói saldo, reservas e disponível a partir do
+que ficou gravado.
+
+O padrão vive num arquivo só, `lib/sheet/schema.ts` — o modelo gerado, a aba
+de instruções e o leitor saem dos três lados dele. A leitura é tolerante:
+ordem de coluna livre, nomes alternativos de aba e de cabeçalho, cabeçalho
+abaixo de um título, `R$ 1.234,56` ou `1234.56`, data por extenso ou só o dia,
+valor negativo lido pelo tipo e linha em branco ignorada.
+
+## Próximos meses (projeção)
+
+A tela **Próximos meses** não guarda nada: ela é calculada a cada visita, a
+partir do cadastro que o app já tem. Cada um dos 12 meses seguintes soma
+quatro partes:
+
+```
+contas fixas ativas
++ assinaturas ativas (a partir do mês em que começaram)
++ parcelas de cartão que caem naquela competência   ← a parte que diminui
++ média dos gastos variáveis dos meses já lançados
+```
+
+A fatura do cartão não entra como linha própria: ela é composta pelas parcelas
+e pelas assinaturas no crédito, e somá-la contaria o mesmo compromisso duas
+vezes. Meses sem nenhum gasto lançado ficam fora da média — zero ali quase
+sempre quer dizer "não lancei", e errar a projeção para baixo é o erro que
+machuca.
 
 ## Exportar e fazer backup
 
 Configurações → **Baixar planilha (.xlsx)**: uma aba por assunto (meses,
 entradas e contas fixas, assinaturas, cartões, compras parceladas, parcelas,
-faturas, lançamentos, ajustes, aportes, orçamentos). É só leitura — não
-reimporta. A exceção é a aba **Próximos meses**, que sai no formato do modelo
-e pode ser editada e reimportada naquela tela.
+faturas, lançamentos, ajustes, aportes, orçamentos). É só leitura — quem
+volta para dentro do app é a planilha do mês, no modelo acima.
 
 Backup que restaura é copiar `data/budgetos.db` com o app fechado.
 
@@ -108,16 +140,19 @@ features/       Cada funcionalidade isolada: componentes, hooks e schemas própr
   investments/  Aportes.
   goals/        Objetivos.
   insights/     Padrões e recomendações.
-  forecast/     "Próximos meses" — gráficos da previsão vinda de planilha.
+  forecast/     "Próximos meses" — gráficos da projeção calculada.
   settings/     Configurações.
   transactions/ Lançamentos (reservado).
 hooks/          Hooks globais de dados (TanStack Query) e mutações compartilhadas.
 lib/            Infraestrutura: banco local, navegação, cn().
   db/           Schema SQLite e conexão. Roda só no servidor.
   export/       Monta o .xlsx de exportação (ExcelJS). Só no servidor.
-  forecast/     Próximos meses: schema.ts é O PADRÃO da planilha (colunas e
-                leitura tolerante), template.ts gera o modelo, parse.ts lê o
-                arquivo e apply.ts grava por competência. Só no servidor.
+  sheet/        Planilha do mês: schema.ts é O PADRÃO (abas, colunas e
+                regra de atualização de cada uma), values.ts lê valor/data/
+                sim-não, template.ts gera o modelo com o cadastro dentro,
+                read.ts entende o arquivo e import.ts grava. Só no servidor.
+  forecast/     project.ts monta a projeção dos 12 meses seguintes a partir
+                do cadastro e da média dos variáveis. Só no servidor.
   ai.ts         Cliente do Claude (SDK da Anthropic). Duas camadas: "fast"
                 (Haiku) interpreta a frase de cada lançamento; "deep" (Opus)
                 analisa o orçamento. Chave em ANTHROPIC_API_KEY.

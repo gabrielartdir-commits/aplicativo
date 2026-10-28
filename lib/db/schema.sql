@@ -206,44 +206,48 @@ CREATE INDEX IF NOT EXISTS idx_installments_competence ON card_installments (yea
 CREATE INDEX IF NOT EXISTS idx_invoices_competence ON card_invoices (year, month);
 
 -- ---------------------------------------------------------------------------
--- Próximos meses (previsão vinda de planilha)
+-- Importação de planilha
 --
--- Espaço separado de propósito: estas duas tabelas não são lidas por nenhum
--- cálculo do app (saldo, disponível, reservas, faturas). Elas guardam o que
--- a planilha de previsão diz, para a tela "Próximos meses" desenhar — e nada
--- mais. Apagar as duas não muda um número do resto do aplicativo.
+-- A planilha mensal entra nas tabelas de verdade (months, transactions,
+-- fixed_expenses, subscriptions, cards, parcelas…), não num espaço paralelo.
+-- O que mora aqui é só o RASTRO: qual importação criou qual linha.
 --
--- A importação é por competência: ao receber um arquivo, as linhas das
--- competências presentes nele são trocadas pelas da planilha, e os meses que
--- o arquivo não menciona ficam intactos. Reimportar o mesmo mês corrigido é
--- seguro, não duplica.
+-- É esse rastro que torna seguro subir a planilha do mesmo mês duas vezes.
+-- Reimportar não duplica nem apaga o que foi lançado à mão: apaga apenas as
+-- linhas que a importação anterior daquela competência criou, e grava as
+-- novas. Sem o rastro, a única forma de não duplicar seria limpar o mês
+-- inteiro — e levaria junto o que o Gabriel digitou no app.
+--
+-- Cadastro (contas fixas, assinaturas, cartões, categorias, entradas fixas)
+-- não entra no rastro: é atualizado por nome e nunca apagado por importação.
 
-CREATE TABLE IF NOT EXISTS forecast_imports (
+CREATE TABLE IF NOT EXISTS sheet_imports (
   id TEXT PRIMARY KEY,
   filename TEXT NOT NULL DEFAULT '',
-  entries_count INTEGER NOT NULL DEFAULT 0,
-  replaced_count INTEGER NOT NULL DEFAULT 0,
-  competences TEXT NOT NULL DEFAULT '',
+  year INTEGER NOT NULL CHECK (year BETWEEN 2000 AND 2200),
+  month INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
+  summary TEXT NOT NULL DEFAULT '',
   imported_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
-CREATE TABLE IF NOT EXISTS forecast_entries (
+CREATE TABLE IF NOT EXISTS sheet_import_rows (
   id TEXT PRIMARY KEY,
-  year INTEGER NOT NULL CHECK (year BETWEEN 2000 AND 2200),
-  month INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
-  kind TEXT NOT NULL DEFAULT 'saida' CHECK (kind IN ('entrada', 'saida')),
-  group_name TEXT NOT NULL DEFAULT '',
-  name TEXT NOT NULL,
-  amount REAL NOT NULL CHECK (amount >= 0),
-  status TEXT NOT NULL DEFAULT 'previsto'
-    CHECK (status IN ('previsto', 'confirmado', 'pago')),
-  method TEXT NOT NULL DEFAULT '',
-  notes TEXT NOT NULL DEFAULT '',
-  import_id TEXT REFERENCES forecast_imports (id) ON DELETE SET NULL,
-  source_row INTEGER,
-  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  import_id TEXT NOT NULL REFERENCES sheet_imports (id) ON DELETE CASCADE,
+  entity TEXT NOT NULL CHECK (
+    entity IN ('transaction', 'investment', 'adjustment', 'payment')
+  ),
+  row_id TEXT NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_forecast_competence
-  ON forecast_entries (year, month);
-CREATE INDEX IF NOT EXISTS idx_forecast_group ON forecast_entries (group_name);
+CREATE INDEX IF NOT EXISTS idx_sheet_imports_competence
+  ON sheet_imports (year, month);
+CREATE INDEX IF NOT EXISTS idx_sheet_import_rows_import
+  ON sheet_import_rows (import_id);
+
+-- Aposentadas: a tela "Próximos meses" virou projeção calculada a partir do
+-- cadastro do próprio app (contas fixas, assinaturas, parcelas e a média dos
+-- variáveis), então não existe mais previsão guardada em tabela. O DROP fica
+-- porque o schema é reaplicado a cada abertura: sem ele, um banco criado na
+-- versão anterior carregaria as duas tabelas vazias para sempre.
+DROP TABLE IF EXISTS forecast_entries;
+DROP TABLE IF EXISTS forecast_imports;

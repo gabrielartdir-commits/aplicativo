@@ -1,83 +1,72 @@
 /**
- * Tipos do espaço "Próximos meses".
+ * Projeção dos próximos meses.
  *
- * Previsão de gastos vinda de planilha. Não se cruza com nenhum tipo do
- * domínio do app — é um retrato do que a planilha diz, só para visualizar.
+ * Nada aqui vem de planilha: a tela "Próximos meses" é calculada a partir do
+ * cadastro que o app já tem — contas fixas, assinaturas, parcelas em aberto e
+ * a média dos gastos variáveis dos meses já vividos.
  */
 
-export type ForecastKind = "entrada" | "saida";
-export type ForecastStatus = "previsto" | "confirmado" | "pago";
+/** As quatro partes que compõem a saída projetada de um mês. */
+export type ForecastPart = "fixos" | "assinaturas" | "parcelas" | "variaveis";
 
-/** Uma linha da planilha, já validada e gravada. */
-export interface ForecastEntry {
-  id: string;
-  year: number;
-  month: number;
-  kind: ForecastKind;
-  /** Grupo/categoria livre da planilha. Vazio vira "Sem grupo" na tela. */
-  group_name: string;
-  name: string;
+export interface ForecastItem {
+  part: ForecastPart;
+  label: string;
+  /** Complemento curto: "vence dia 10", "Nubank", "parcela 4 de 10". */
+  detail: string;
   amount: number;
-  status: ForecastStatus;
-  /** Forma de pagamento ou origem, texto livre. */
-  method: string;
-  notes: string;
-  import_id: string | null;
-  source_row: number | null;
-  created_at: string;
 }
 
-/** Totais de uma competência, montados no servidor. */
 export interface ForecastMonth {
   year: number;
   month: number;
-  /** Rótulo curto, como "nov/26". */
+  /** "nov/26" */
   competence: string;
-  entradas: number;
+  fixos: number;
+  assinaturas: number;
+  parcelas: number;
+  variaveis: number;
+  /** Soma das quatro partes. */
   saidas: number;
-  /** entradas − saídas. */
+  entradas: number;
+  /** entradas - saidas */
   saldo: number;
-  /** Saídas por grupo, para as barras empilhadas. */
-  groups: Record<string, number>;
-  count: number;
+  /** Saldo somado desde o primeiro mês projetado. */
+  acumulado: number;
+  items: ForecastItem[];
 }
 
-export interface ForecastSummary {
+/**
+ * A média de gastos variáveis e de onde ela saiu.
+ *
+ * A tela mostra os meses que entraram na conta: uma média é um palpite, e o
+ * palpite tem de ser auditável.
+ */
+export interface ForecastAverage {
+  value: number;
+  monthsUsed: number;
+  perMonth: { competence: string; total: number }[];
+  /**
+   * `true` quando só havia o mês em andamento para calcular — a média sai
+   * baixa porque o mês ainda não acabou, e a tela precisa avisar.
+   */
+  partial: boolean;
+}
+
+export interface ForecastProjection {
+  /** Primeiro mês projetado; `null` quando não há mês aberto no app. */
+  start: { year: number; month: number } | null;
   months: ForecastMonth[];
-  /** Grupos presentes nas saídas, do maior total para o menor. */
-  groups: { name: string; total: number }[];
-  last: ForecastImportLog | null;
-}
-
-export interface ForecastImportLog {
-  id: string;
-  filename: string;
-  entries_count: number;
-  replaced_count: number;
-  competences: string;
-  imported_at: string;
-}
-
-/** Problema encontrado numa linha da planilha. */
-export interface ForecastIssue {
-  /** Linha do Excel (a primeira linha de dados é a 2). */
-  row: number;
-  message: string;
-}
-
-/** O que a importação vai fazer — devolvido antes e depois de aplicar. */
-export interface ForecastImportReport {
-  filename: string;
-  /** Linhas válidas lidas do arquivo. */
-  entries: number;
-  /** Competências que o arquivo traz, em ordem. */
-  competences: string[];
-  /** Linhas que já existiam nessas competências e serão substituídas. */
-  replaced: number;
-  totals: { entradas: number; saidas: number };
-  issues: ForecastIssue[];
-  /** Linhas em branco ignoradas. */
-  skipped: number;
-  /** Falso quando é só conferência (`modo=conferir`). */
-  applied: boolean;
+  average: ForecastAverage;
+  /** Totais do horizonte inteiro. */
+  totals: { saidas: number; entradas: number; saldo: number };
+  /** Valores do mês típico, para os cartões do topo. */
+  monthly: {
+    fixos: number;
+    assinaturas: number;
+    variaveis: number;
+    entradas: number;
+  };
+  /** Competência da última parcela conhecida — quando o cartão alivia. */
+  lastInstallment: string | null;
 }
