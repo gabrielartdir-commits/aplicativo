@@ -45,3 +45,6 @@ Chave de acesso.txt
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Planilhas geradas para conferência, não versionadas
+/planilha/
