@@ -20,6 +20,7 @@ import {
   PlusCircle,
   PiggyBank,
   CalendarRange,
+  CalendarClock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCurrentMonth } from "@/hooks/use-current-month";
@@ -54,6 +55,7 @@ export function MobileNav() {
   const extraItems = [
     { label: "Fluxo", href: "/fluxo", icon: ArrowLeftRight },
     { label: "Parcelas", href: "/parcelas", icon: CalendarRange },
+    { label: "Próximos meses", href: "/proximos-meses", icon: CalendarClock },
     { label: "Progressão", href: "/progressao", icon: LineChart },
     { label: "Investimentos", href: "/investimentos", icon: TrendingUp },
     { label: "Simulações", href: "/simulacoes", icon: Sparkles },

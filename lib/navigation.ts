@@ -1,5 +1,6 @@
 import {
   ArrowLeftRight,
+  CalendarClock,
   History,
   Lightbulb,
   Receipt,
@@ -30,6 +31,7 @@ export const navigation: NavItem[] = [
   { label: "Histórico", href: "/historico", icon: History },
   { label: "Gastos Fixos", href: "/gastos-fixos", icon: Receipt },
   { label: "Parcelas", href: "/parcelas", icon: TrendingUp },
+  { label: "Próximos meses", href: "/proximos-meses", icon: CalendarClock },
   { label: "Progressão", href: "/progressao", icon: LineChart },
   { label: "Investimentos", href: "/investimentos", icon: TrendingUp },
   { label: "Simulações", href: "/simulacoes", icon: Sparkles },

@@ -45,12 +45,40 @@ Lembrete do 5º dia útil (opcional):
 powershell -ExecutionPolicy Bypass -File scripts\instalar-lembrete.ps1
 ```
 
+## Próximos meses (previsão por planilha)
+
+A tela **Próximos meses** desenha os gastos futuros a partir de uma planilha,
+sem passar por nenhuma tela de lançamento. É só visualização: nada ali entra
+no saldo, no disponível, nas reservas ou nas faturas.
+
+O caminho é sempre o mesmo:
+
+1. **Baixar o modelo** (botão *Importar planilha*). O *modelo já preenchido*
+   traz os próximos 12 meses com contas fixas, assinaturas, parcelas e
+   entradas que o app conhece — é conferir e completar.
+2. **Preencher** a aba `Lançamentos`: uma linha por gasto, com competência,
+   grupo, descrição e valor. A aba *Como preencher* explica cada coluna.
+3. **Importar**. O app lê o arquivo, mostra o que vai mudar (linhas,
+   competências, quanto seria substituído, erros linha a linha) e só grava
+   depois da confirmação.
+
+A gravação é **por competência**: os meses presentes no arquivo são trocados
+pelos dele, os outros ficam intactos. Dá para preencher um mês por vez e
+reimportar o mesmo mês corrigido quantas vezes quiser, sem duplicar.
+
+O padrão da planilha vive num arquivo só, `lib/forecast/schema.ts` — o modelo
+gerado e o leitor saem dos dois lados dele. A leitura é tolerante: ordem de
+coluna livre, nomes alternativos de cabeçalho, cabeçalho abaixo de um título,
+`11/2026` ou `nov/26` ou `Ano`+`Mês`, `R$ 1.234,56` ou `1234.56`, valor
+negativo lido como positivo e linha em branco ignorada.
+
 ## Exportar e fazer backup
 
 Configurações → **Baixar planilha (.xlsx)**: uma aba por assunto (meses,
 entradas e contas fixas, assinaturas, cartões, compras parceladas, parcelas,
 faturas, lançamentos, ajustes, aportes, orçamentos). É só leitura — não
-reimporta.
+reimporta. A exceção é a aba **Próximos meses**, que sai no formato do modelo
+e pode ser editada e reimportada naquela tela.
 
 Backup que restaura é copiar `data/budgetos.db` com o app fechado.
 
@@ -80,12 +108,16 @@ features/       Cada funcionalidade isolada: componentes, hooks e schemas própr
   investments/  Aportes.
   goals/        Objetivos.
   insights/     Padrões e recomendações.
+  forecast/     "Próximos meses" — gráficos da previsão vinda de planilha.
   settings/     Configurações.
   transactions/ Lançamentos (reservado).
 hooks/          Hooks globais de dados (TanStack Query) e mutações compartilhadas.
 lib/            Infraestrutura: banco local, navegação, cn().
   db/           Schema SQLite e conexão. Roda só no servidor.
   export/       Monta o .xlsx de exportação (ExcelJS). Só no servidor.
+  forecast/     Próximos meses: schema.ts é O PADRÃO da planilha (colunas e
+                leitura tolerante), template.ts gera o modelo, parse.ts lê o
+                arquivo e apply.ts grava por competência. Só no servidor.
   ai.ts         Cliente do Claude (SDK da Anthropic). Duas camadas: "fast"
                 (Haiku) interpreta a frase de cada lançamento; "deep" (Opus)
                 analisa o orçamento. Chave em ANTHROPIC_API_KEY.

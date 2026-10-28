@@ -204,3 +204,46 @@ CREATE INDEX IF NOT EXISTS idx_categories_sort ON categories (sort_order);
 CREATE INDEX IF NOT EXISTS idx_ai_created ON ai_conversations (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_installments_competence ON card_installments (year, month);
 CREATE INDEX IF NOT EXISTS idx_invoices_competence ON card_invoices (year, month);
+
+-- ---------------------------------------------------------------------------
+-- Próximos meses (previsão vinda de planilha)
+--
+-- Espaço separado de propósito: estas duas tabelas não são lidas por nenhum
+-- cálculo do app (saldo, disponível, reservas, faturas). Elas guardam o que
+-- a planilha de previsão diz, para a tela "Próximos meses" desenhar — e nada
+-- mais. Apagar as duas não muda um número do resto do aplicativo.
+--
+-- A importação é por competência: ao receber um arquivo, as linhas das
+-- competências presentes nele são trocadas pelas da planilha, e os meses que
+-- o arquivo não menciona ficam intactos. Reimportar o mesmo mês corrigido é
+-- seguro, não duplica.
+
+CREATE TABLE IF NOT EXISTS forecast_imports (
+  id TEXT PRIMARY KEY,
+  filename TEXT NOT NULL DEFAULT '',
+  entries_count INTEGER NOT NULL DEFAULT 0,
+  replaced_count INTEGER NOT NULL DEFAULT 0,
+  competences TEXT NOT NULL DEFAULT '',
+  imported_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE TABLE IF NOT EXISTS forecast_entries (
+  id TEXT PRIMARY KEY,
+  year INTEGER NOT NULL CHECK (year BETWEEN 2000 AND 2200),
+  month INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
+  kind TEXT NOT NULL DEFAULT 'saida' CHECK (kind IN ('entrada', 'saida')),
+  group_name TEXT NOT NULL DEFAULT '',
+  name TEXT NOT NULL,
+  amount REAL NOT NULL CHECK (amount >= 0),
+  status TEXT NOT NULL DEFAULT 'previsto'
+    CHECK (status IN ('previsto', 'confirmado', 'pago')),
+  method TEXT NOT NULL DEFAULT '',
+  notes TEXT NOT NULL DEFAULT '',
+  import_id TEXT REFERENCES forecast_imports (id) ON DELETE SET NULL,
+  source_row INTEGER,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_forecast_competence
+  ON forecast_entries (year, month);
+CREATE INDEX IF NOT EXISTS idx_forecast_group ON forecast_entries (group_name);
