@@ -33,6 +33,12 @@ npm run build && npm start   # produção local
 Uma única variável, opcional, em `.env.local`: `ANTHROPIC_API_KEY` para o
 copiloto, a análise por voz e a consultoria. Sem ela, todo o resto funciona.
 
+Atalho na area de trabalho e no menu Iniciar:
+
+```
+powershell -ExecutionPolicy Bypass -File scripts\criar-atalho.ps1
+```
+
 Lembrete do 5º dia útil (opcional):
 
 ```
@@ -85,6 +91,7 @@ services/       Orquestração com efeitos: monthService, transactionService,
 types/          Database (espelho do schema) + tipos de domínio.
 utils/          Funções puras (formatação de moeda/data pt-BR).
 scripts/        verify-finance.ts — sanidade das regras (npx tsx scripts/verify-finance.ts).
+                criar-atalho.ps1 — atalho do BudgetOS (-Remover apaga).
                 lembrete-mensal.ps1 — aviso no 5º dia útil (-Check mostra a data,
                 -Force testa o aviso). instalar-lembrete.ps1 registra a tarefa.
 ```
