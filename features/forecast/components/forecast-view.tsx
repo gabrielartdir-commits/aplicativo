@@ -7,6 +7,7 @@ import {
   Bar,
   CartesianGrid,
   ComposedChart,
+  LabelList,
   Legend,
   Line,
   ReferenceLine,
@@ -32,6 +33,7 @@ import { useForecastProjection } from "@/hooks/use-forecast";
 import { monthLabel } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils/format";
+import type { LabelProps } from "recharts";
 import type { ForecastMonth, ForecastPart } from "@/types/forecast";
 
 /**
@@ -135,6 +137,11 @@ function ChartTooltip({
     .filter((item) => item.dataKey !== "entradas")
     .reduce((sum, item) => sum + (item.value ?? 0), 0);
 
+  // Só o gráfico de saídas traz entradas; no de sobra acumulada não há o que
+  // subtrair, e aí a linha da sobra do mês não aparece.
+  const incomeRow = payload.find((item) => item.dataKey === "entradas");
+  const income = incomeRow ? (incomeRow.value ?? 0) : null;
+
   return (
     <div className="rounded-lg border bg-popover/95 px-3 py-2 text-xs shadow-lg backdrop-blur">
       <p className="mb-1.5 font-semibold">{label}</p>
@@ -152,12 +159,30 @@ function ChartTooltip({
           </div>
         ))}
       </div>
-      {outflow > 0 && (
-        <div className="mt-1.5 flex items-center gap-2 border-t pt-1.5">
-          <span className="text-muted-foreground">Saída total</span>
-          <span className="ml-auto font-semibold tabular-nums">
-            {money(outflow)}
-          </span>
+      {/*
+        Só o gráfico de saídas fecha uma conta: ele tem as partes e as
+        entradas. No de sobra acumulada há uma série só, e somar "tudo que
+        não é entrada" devolvia a própria sobra rotulada como "Saída total".
+      */}
+      {income !== null && outflow > 0 && (
+        <div className="mt-1.5 space-y-1 border-t pt-1.5">
+          <div className="flex items-center gap-2">
+            <span className="text-muted-foreground">Saída total</span>
+            <span className="ml-auto font-semibold tabular-nums">
+              {money(outflow)}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-muted-foreground">Sobra do mês</span>
+            <span
+              className={cn(
+                "ml-auto font-semibold tabular-nums",
+                income - outflow < 0 ? "text-rose-400" : "text-emerald-400"
+              )}
+            >
+              {money(income - outflow)}
+            </span>
+          </div>
         </div>
       )}
     </div>
@@ -252,8 +277,53 @@ export function ForecastView() {
     parcelas: item.parcelas,
     variaveis: item.variaveis,
     entradas: item.entradas,
+    saldo: item.saldo,
     acumulado: item.acumulado,
   }));
+
+  /*
+   * A sobra do mês escrita acima da coluna.
+   *
+   * Vai pendurada na última barra da pilha, que é a que o Recharts posiciona
+   * no topo — `y` já é o alto da coluna inteira, mesmo quando essa última
+   * parte vale zero. Verde ou vermelho conforme o sinal, porque o mês em que
+   * falta dinheiro é justamente o que precisa saltar aos olhos.
+   */
+  const renderSobra = (props: LabelProps) => {
+    const { x, y, width, index } = props;
+    const item = chartData[index ?? -1];
+    if (!item || x === undefined || y === undefined || width === undefined) {
+      return null;
+    }
+
+    /*
+     * O texto encolhe conforme a coluna: com doze meses numa janela estreita,
+     * "R$ 1.594,60" em todas elas vira uma linha de números sobrepostos. Os
+     * centavos caem primeiro, e abaixo de ~26px de coluna o rótulo some — o
+     * valor exato continua na dica do gráfico e na tabela.
+     */
+    const column = Number(width);
+    if (column < 26) return null;
+
+    return (
+      <text
+        x={Number(x) + column / 2}
+        y={Number(y) - 7}
+        textAnchor="middle"
+        fontSize={column < 56 ? 9 : 10}
+        fontWeight={600}
+        fill={item.saldo < 0 ? "#fb7185" : "#34d399"}
+      >
+        {column < 56
+          ? item.saldo.toLocaleString("pt-BR", {
+              style: "currency",
+              currency: "BRL",
+              maximumFractionDigits: 0,
+            })
+          : money(item.saldo)}
+      </text>
+    );
+  };
 
   return (
     <div className="space-y-8">
@@ -390,7 +460,7 @@ export function ForecastView() {
           <div className="flex items-baseline justify-between">
             <p className="text-sm font-semibold">Saídas por mês</p>
             <p className="text-[11px] text-muted-foreground">
-              barras empilhadas por tipo de compromisso
+              acima de cada coluna, o que sobra no mês
             </p>
           </div>
           <div className="h-[320px] w-full">
@@ -424,7 +494,7 @@ export function ForecastView() {
                   iconSize={8}
                   wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
                 />
-                {PART_ORDER.map((part) => (
+                {PART_ORDER.map((part, index) => (
                   <Bar
                     key={part}
                     dataKey={part}
@@ -432,7 +502,11 @@ export function ForecastView() {
                     stackId="saidas"
                     fill={PART[part].color}
                     radius={part === "variaveis" ? [4, 4, 0, 0] : undefined}
-                  />
+                  >
+                    {index === PART_ORDER.length - 1 && (
+                      <LabelList dataKey="saldo" content={renderSobra} />
+                    )}
+                  </Bar>
                 ))}
                 <Line
                   type="monotone"
