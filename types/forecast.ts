@@ -45,7 +45,17 @@ export interface ForecastMonth {
 export interface ForecastAverage {
   value: number;
   monthsUsed: number;
-  perMonth: { competence: string; total: number }[];
+  /**
+   * Os meses que compuseram a média, abertos por fonte: o que foi lançado e
+   * o que veio da fatura além das parcelas e assinaturas (compra avulsa no
+   * crédito). A tela mostra os dois porque são origens bem diferentes.
+   */
+  perMonth: {
+    competence: string;
+    total: number;
+    lancado: number;
+    cartao: number;
+  }[];
   /**
    * `true` quando só havia o mês em andamento para calcular — a média sai
    * baixa porque o mês ainda não acabou, e a tela precisa avisar.

@@ -96,13 +96,26 @@ quatro partes:
 contas fixas ativas
 + assinaturas ativas (a partir do mês em que começaram)
 + parcelas de cartão que caem naquela competência   ← a parte que diminui
-+ média dos gastos variáveis dos meses já lançados
++ média dos gastos variáveis dos meses já vividos
 ```
 
 A fatura do cartão não entra como linha própria: ela é composta pelas parcelas
 e pelas assinaturas no crédito, e somá-la contaria o mesmo compromisso duas
-vezes. Meses sem nenhum gasto lançado ficam fora da média — zero ali quase
-sempre quer dizer "não lancei", e errar a projeção para baixo é o erro que
+vezes.
+
+A média dos variáveis soma **duas** fontes por mês:
+
+1. os lançamentos de gasto (`transactions` do tipo `expense`);
+2. o que a fatura declarada tem **além** das parcelas e das assinaturas
+   (`declared_total - installments_total - subscriptions_total`), que é compra
+   avulsa no crédito.
+
+A segunda é fácil de esquecer e cara de errar: parcelas e assinaturas já
+entram como linhas próprias da projeção, então, sem ela, todo o resto da
+fatura — mercado, restaurante, posto — simplesmente sumia da conta.
+
+Meses sem nenhum gasto nas duas fontes ficam fora da média: zero ali quase
+sempre quer dizer "não preenchi", e errar a projeção para baixo é o erro que
 machuca.
 
 ## Exportar e fazer backup

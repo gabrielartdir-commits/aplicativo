@@ -51,6 +51,57 @@ function emptyAverage(): ForecastAverage {
 }
 
 /**
+ * Quanto cada mês gastou de variável, somando as DUAS fontes.
+ *
+ * Gasto variável não aparece só como lançamento. Quando a fatura do cartão é
+ * informada pelo extrato (`declared_total`), o que ela tem além das parcelas
+ * e das assinaturas é compra avulsa no crédito — mercado, restaurante, posto
+ * — e isso é gasto variável tanto quanto um lançamento digitado.
+ *
+ * Sem somar essa parte a projeção fica otimista de um jeito perigoso: as
+ * parcelas e as assinaturas já entram como linhas próprias, então o resto da
+ * fatura simplesmente desaparecia da conta. Numa fatura de R$ 4.521 com
+ * R$ 1.326 de parcelas e R$ 537 de assinaturas, sumiam R$ 2.658 por mês.
+ *
+ * `MAX(..., 0)`: fatura declarada abaixo da soma das parcelas é inconsistência
+ * de cadastro, não crédito a favor.
+ */
+interface MonthSpend {
+  lancado: number;
+  cartao: number;
+}
+
+function spendPerMonth(months: MonthRow[]): Map<string, MonthSpend> {
+  const spend = new Map<string, MonthSpend>(
+    months.map((row) => [row.id, { lancado: 0, cartao: 0 }])
+  );
+
+  for (const row of all<{ month_id: string; total: number }>(
+    `SELECT month_id, SUM(amount) AS total FROM transactions
+      WHERE type = 'expense' GROUP BY month_id`
+  )) {
+    const current = spend.get(row.month_id);
+    if (current) current.lancado = round2(current.lancado + Number(row.total));
+  }
+
+  const idOf = new Map(months.map((row) => [`${row.year}-${row.month}`, row.id]));
+  for (const row of all<{ year: number; month: number; avulso: number }>(
+    `SELECT year, month,
+            SUM(MAX(declared_total - installments_total - subscriptions_total, 0))
+              AS avulso
+       FROM card_invoices
+      WHERE declared_total IS NOT NULL
+      GROUP BY year, month`
+  )) {
+    const current = idOf.get(`${row.year}-${row.month}`);
+    const entry = current ? spend.get(current) : undefined;
+    if (entry) entry.cartao = round2(entry.cartao + Number(row.avulso));
+  }
+
+  return spend;
+}
+
+/**
  * Média mensal dos gastos variáveis.
  *
  * Usa os meses ANTERIORES ao mês em andamento: incluir um mês que ainda não
@@ -64,12 +115,7 @@ function variableAverage(
 ): ForecastAverage {
   if (months.length === 0) return emptyAverage();
 
-  const spendByMonth = new Map(
-    all<{ month_id: string; total: number }>(
-      `SELECT month_id, SUM(amount) AS total FROM transactions
-        WHERE type = 'expense' GROUP BY month_id`
-    ).map((row) => [row.month_id, Number(row.total)])
-  );
+  const spendByMonth = spendPerMonth(months);
 
   const limit = current ? order(current) : Infinity;
 
@@ -81,7 +127,12 @@ function variableAverage(
    * errar para baixo é o erro que machuca — a tela diria que sobra dinheiro
    * que não existe.
    */
-  const withSpend = months.filter((row) => (spendByMonth.get(row.id) ?? 0) > 0);
+  const totalOf = (id: string) => {
+    const entry = spendByMonth.get(id);
+    return entry ? round2(entry.lancado + entry.cartao) : 0;
+  };
+
+  const withSpend = months.filter((row) => totalOf(row.id) > 0);
   const concluded = withSpend.filter((row) => order(row) < limit);
   const partial = concluded.length === 0;
   const pool = (partial ? withSpend : concluded)
@@ -92,10 +143,15 @@ function variableAverage(
 
   const perMonth = pool
     .sort((a, b) => order(a) - order(b))
-    .map((row) => ({
-      competence: shortCompetenceLabel({ year: row.year, month: row.month }),
-      total: round2(spendByMonth.get(row.id) ?? 0),
-    }));
+    .map((row) => {
+      const entry = spendByMonth.get(row.id) ?? { lancado: 0, cartao: 0 };
+      return {
+        competence: shortCompetenceLabel({ year: row.year, month: row.month }),
+        total: round2(entry.lancado + entry.cartao),
+        lancado: entry.lancado,
+        cartao: entry.cartao,
+      };
+    });
 
   const sum = perMonth.reduce((total, item) => total + item.total, 0);
   return {

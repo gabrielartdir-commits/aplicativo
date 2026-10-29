@@ -66,7 +66,7 @@ const PART: Record<
     label: "Variáveis (média)",
     color: "#94a3b8",
     icon: ShoppingBag,
-    hint: "a média do que você gastou por mês nos meses já lançados",
+    hint: "a média do que você gastou por mês: lançamentos mais a parte avulsa da fatura",
   },
 };
 
@@ -326,19 +326,37 @@ export function ForecastView() {
           </div>
 
           {projection.average.monthsUsed > 0 && (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t pt-3 text-[11px] text-muted-foreground">
-              <span>
-                Média de {money(projection.average.value)} calculada com os gastos de{" "}
+            <div className="space-y-2 border-t pt-3 text-[11px] text-muted-foreground">
+              <p>
+                Média de{" "}
+                <span className="font-semibold text-foreground tabular-nums">
+                  {money(projection.average.value)}
+                </span>
+                , calculada com os gastos de{" "}
                 {projection.average.monthsUsed === 1
                   ? "1 mês"
                   : `${projection.average.monthsUsed} meses`}
-                :
-              </span>
-              {projection.average.perMonth.map((item) => (
-                <span key={item.competence} className="tabular-nums">
-                  {item.competence} {money(item.total)}
-                </span>
-              ))}
+                . Entram os lançamentos do mês e a parte da fatura do cartão
+                que não é parcela nem assinatura — compra avulsa no crédito é
+                gasto variável igual.
+              </p>
+              <div className="flex flex-wrap gap-x-4 gap-y-1">
+                {projection.average.perMonth.map((item) => (
+                  <span key={item.competence} className="tabular-nums">
+                    <span className="font-medium text-foreground">
+                      {item.competence}
+                    </span>{" "}
+                    {money(item.total)}
+                    {item.cartao > 0 && (
+                      <span className="opacity-70">
+                        {" "}
+                        ({money(item.lancado)} lançado + {money(item.cartao)} no
+                        cartão)
+                      </span>
+                    )}
+                  </span>
+                ))}
+              </div>
               {projection.average.partial && (
                 <Badge variant="outline" className="text-[10px]">
                   mês em andamento — a média sobe quando ele fechar
@@ -348,9 +366,10 @@ export function ForecastView() {
           )}
           {projection.average.monthsUsed === 0 && (
             <p className="border-t pt-3 text-[11px] text-muted-foreground">
-              Ainda não há gastos lançados para calcular a média dos variáveis.
-              A projeção mostra só os compromissos já cadastrados — ela fica
-              mais realista depois do primeiro mês de lançamentos.
+              Ainda não há gastos para calcular a média dos variáveis — nem
+              lançamentos, nem fatura declarada acima das parcelas. A projeção
+              mostra só os compromissos já cadastrados, e fica mais realista
+              depois do primeiro mês preenchido.
             </p>
           )}
           {projection.lastInstallment && (
